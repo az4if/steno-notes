@@ -1,28 +1,42 @@
+/* ---------------------------------------------------------------
+   Steno — tokens
+--------------------------------------------------------------- */
 :root {
   --desk:            #C7B990;
   --desk-shadow:      #a8996b;
+
   --paper:            #FBF3D9;
   --paper-edge:        #efe2b4;
+
   --rule:             rgba(94, 138, 168, 0.35);
   --margin:            #c15a56;
+
   --ink:              #2b2621;
   --ink-soft:          #8a8170;
+
   --pine:             #3e5c4e;
   --pine-dark:         #2a4136;
+
   --tab-bg:            #e7dbae;
   --tab-text:          #6c6248;
+
   --danger:           #b24b3c;
+
   --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono:    'JetBrains Mono', 'Courier New', monospace;
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+
+html, body {
+  height: 100%;
+}
 
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(ellipse at top, #d4c69a 0%, var(--desk) 45%, var(--desk-shadow) 100%);
+  background:
+    radial-gradient(ellipse at top, #d4c69a 0%, var(--desk) 45%, var(--desk-shadow) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -31,6 +45,9 @@ body {
   color: var(--ink);
 }
 
+/* ---------------------------------------------------------------
+   Notebook shell
+--------------------------------------------------------------- */
 .notebook {
   width: 100%;
   max-width: 880px;
@@ -47,6 +64,7 @@ body {
   position: relative;
 }
 
+/* faint stack-of-paper edge on the right, like pages behind the top sheet */
 .notebook::after {
   content: "";
   position: absolute;
@@ -54,10 +72,17 @@ body {
   right: -6px;
   bottom: 6px;
   width: 6px;
-  background: repeating-linear-gradient(to bottom, var(--paper-edge) 0 3px, var(--paper) 3px 6px);
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--paper-edge) 0 3px,
+    var(--paper) 3px 6px
+  );
   border-radius: 0 3px 3px 0;
 }
 
+/* ---------------------------------------------------------------
+   Tab rail — the notebook's page index
+--------------------------------------------------------------- */
 .tab-rail {
   flex-shrink: 0;
   width: 124px;
@@ -90,7 +115,9 @@ body {
   transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
-.tab:hover { transform: translateX(4px); }
+.tab:hover {
+  transform: translateX(4px);
+}
 
 .tab.active {
   background: var(--pine);
@@ -117,6 +144,9 @@ body {
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* ---------------------------------------------------------------
+   Page
+--------------------------------------------------------------- */
 .page {
   flex: 1;
   min-width: 0;
@@ -151,7 +181,9 @@ body {
   color: var(--ink);
 }
 
-.page-title::placeholder { color: var(--ink-soft); }
+.page-title::placeholder {
+  color: var(--ink-soft);
+}
 
 .delete-btn {
   flex-shrink: 0;
@@ -178,8 +210,9 @@ body {
   outline: none;
   background-color: transparent;
   background-image:
-    linear-gradient(to right, transparent 0 59px, var(--margin) 59px 60px, transparent 60px 100%),
-    repeating-linear-gradient(to bottom, transparent 0 26px, var(--rule) 26px 27px);
+    linear-gradient(to right, transparent 59px, var(--margin) 59px, var(--margin) 60px, transparent 60px),
+    repeating-linear-gradient(to bottom, transparent 0px, transparent 26px, var(--rule) 26px, var(--rule) 27px);
+  background-position: 0 0, 0 8px;
   background-attachment: local;
   padding: 13px 4px 13px 68px;
   font-family: var(--font-mono);
@@ -189,7 +222,9 @@ body {
   margin-top: 10px;
 }
 
-.page-body::placeholder { color: var(--ink-soft); }
+.page-body::placeholder {
+  color: var(--ink-soft);
+}
 
 .page-foot {
   display: flex;
@@ -200,9 +235,18 @@ body {
   letter-spacing: 0.02em;
 }
 
-.saved-at { opacity: 0; transition: opacity 0.4s ease; }
-.saved-at.visible { opacity: 1; }
+.saved-at {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
 
+.saved-at.visible {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------
+   Empty state
+--------------------------------------------------------------- */
 .empty-state {
   flex: 1;
   display: flex;
@@ -229,8 +273,13 @@ body {
   transition: background 0.15s ease;
 }
 
-.empty-add-btn:hover { background: var(--pine-dark); }
+.empty-add-btn:hover {
+  background: var(--pine-dark);
+}
 
+/* ---------------------------------------------------------------
+   Focus visibility (keep it, just retheme it)
+--------------------------------------------------------------- */
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
@@ -238,22 +287,54 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
+/* ---------------------------------------------------------------
+   Responsive: tabs move to a horizontal strip up top
+--------------------------------------------------------------- */
 @media (max-width: 640px) {
   body { padding: 0; }
-  .notebook { flex-direction: column; height: 100vh; max-width: none; border-radius: 0; }
+
+  .notebook {
+    flex-direction: column;
+    height: 100vh;
+    max-width: none;
+    border-radius: 0;
+  }
+
   .notebook::after { display: none; }
-  .tab-rail { width: auto; flex-direction: row; padding: 14px 14px 0 14px; gap: 6px; }
-  .tab, .tab-add { border-radius: 10px 10px 0 0; transform: translateY(0); }
+
+  .tab-rail {
+    width: auto;
+    flex-direction: row;
+    padding: 14px 14px 0 14px;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+
+  .tab, .tab-add {
+    border-radius: 10px 10px 0 0;
+    transform: translateY(0);
+    flex-shrink: 0;
+    max-width: 140px;
+  }
+
   .tab:hover, .tab-add:hover { transform: translateY(-3px); }
   .tab.active { transform: translateY(-2px); }
-  .page { padding: 16px 16px 12px 16px; }
+
+  .page {
+    padding: 16px 16px 12px 16px;
+  }
+
   .page-head { padding-left: 0; }
+
   .page-body {
     padding-left: 44px;
     background-image:
-      linear-gradient(to right, transparent 0 35px, var(--margin) 35px 36px, transparent 36px 100%),
-      repeating-linear-gradient(to bottom, transparent 0 26px, var(--rule) 26px 27px);
+      linear-gradient(to right, transparent 35px, var(--margin) 35px, var(--margin) 36px, transparent 36px),
+      repeating-linear-gradient(to bottom, transparent 0px, transparent 26px, var(--rule) 26px, var(--rule) 27px);
+    background-position: 0 0, 0 8px;
   }
+
   .page-foot { padding-left: 0; }
 }
 

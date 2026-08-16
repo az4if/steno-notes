@@ -14,28 +14,41 @@
   const emptyState  = document.getElementById("emptyState");
   const emptyAddBtn = document.getElementById("emptyAddBtn");
 
+  /** @type {{id:string, title:string, body:string, updatedAt:number}[]} */
   let pages = [];
   let activeId = null;
   let saveTimer = null;
   let savedFlashTimer = null;
 
+  // ---------------------------------------------------------------
+  // Persistence
+  // ---------------------------------------------------------------
   function load() {
+    let storedActiveId = null;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       pages = raw ? JSON.parse(raw) : [];
-    } catch {
+      storedActiveId = localStorage.getItem(ACTIVE_KEY);
+    } catch (e) {
+      // localStorage unavailable (private mode, disabled storage, etc.) —
+      // fall back to an in-memory notebook for this session.
       pages = [];
     }
     if (!Array.isArray(pages) || pages.length === 0) {
       pages = [freshPage("Page 1")];
     }
-    activeId = localStorage.getItem(ACTIVE_KEY) || pages[0].id;
+    activeId = storedActiveId || pages[0].id;
     if (!pages.some(p => p.id === activeId)) activeId = pages[0].id;
   }
 
   function persist() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(pages));
-    localStorage.setItem(ACTIVE_KEY, activeId);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pages));
+      localStorage.setItem(ACTIVE_KEY, activeId);
+    } catch (e) {
+      // Storage unavailable or full — keep working in memory for this
+      // session rather than throwing and breaking the UI.
+    }
   }
 
   function freshPage(title) {
@@ -47,6 +60,9 @@
     };
   }
 
+  // ---------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------
   function render() {
     renderTabs();
     renderPage();
@@ -54,6 +70,7 @@
 
   function renderTabs() {
     tabRail.innerHTML = "";
+
     for (const p of pages) {
       const btn = document.createElement("button");
       btn.className = "tab" + (p.id === activeId ? " active" : "");
@@ -63,6 +80,7 @@
       btn.addEventListener("click", () => selectPage(p.id));
       tabRail.appendChild(btn);
     }
+
     const addBtn = document.createElement("button");
     addBtn.className = "tab-add";
     addBtn.type = "button";
@@ -74,13 +92,16 @@
 
   function renderPage() {
     const active = pages.find(p => p.id === activeId);
+
     if (!active) {
       pageEl.hidden = true;
       emptyState.hidden = false;
       return;
     }
+
     pageEl.hidden = false;
     emptyState.hidden = true;
+
     titleEl.value = active.title;
     bodyEl.value = active.body;
     updateWordCount();
@@ -99,6 +120,9 @@
     savedFlashTimer = setTimeout(() => savedAt.classList.remove("visible"), 1200);
   }
 
+  // ---------------------------------------------------------------
+  // Actions
+  // ---------------------------------------------------------------
   function selectPage(id) {
     activeId = id;
     persist();
@@ -119,12 +143,20 @@
   function deleteActivePage() {
     const active = pages.find(p => p.id === activeId);
     if (!active) return;
+
     const label = active.title.trim() || "this untitled page";
     const ok = window.confirm(`Tear out "${label}"? This can't be undone.`);
     if (!ok) return;
+
     const idx = pages.findIndex(p => p.id === activeId);
     pages.splice(idx, 1);
-    activeId = pages.length > 0 ? pages[Math.max(0, idx - 1)].id : null;
+
+    if (pages.length > 0) {
+      activeId = pages[Math.max(0, idx - 1)].id;
+    } else {
+      activeId = null;
+    }
+
     persist();
     render();
   }
@@ -132,10 +164,12 @@
   function scheduleSave() {
     const active = pages.find(p => p.id === activeId);
     if (!active) return;
+
     active.title = titleEl.value;
     active.body = bodyEl.value;
     active.updatedAt = Date.now();
     updateWordCount();
+
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       persist();
@@ -144,11 +178,15 @@
     }, 400);
   }
 
+  // ---------------------------------------------------------------
+  // Wire up
+  // ---------------------------------------------------------------
   titleEl.addEventListener("input", scheduleSave);
   bodyEl.addEventListener("input", scheduleSave);
   deleteBtn.addEventListener("click", deleteActivePage);
   emptyAddBtn.addEventListener("click", addPage);
 
+  // Save immediately before the tab closes so nothing is lost.
   window.addEventListener("beforeunload", () => {
     const active = pages.find(p => p.id === activeId);
     if (active) {

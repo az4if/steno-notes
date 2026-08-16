@@ -14,10 +14,12 @@
 
   <div class="notebook" id="notebook">
 
+    <!-- Tab rail: one tab per page, plus an "add" tab -->
     <nav class="tab-rail" id="tabRail" aria-label="Pages">
       <!-- tabs injected by app.js -->
     </nav>
 
+    <!-- The open page -->
     <main class="page" id="page">
       <header class="page-head">
         <input
@@ -49,6 +51,7 @@
       </footer>
     </main>
 
+    <!-- Shown only when every page has been torn out -->
     <div class="empty-state" id="emptyState" hidden>
       <p>This notebook is empty.</p>
       <button id="emptyAddBtn" class="empty-add-btn">Add a page</button>
