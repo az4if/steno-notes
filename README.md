@@ -16,7 +16,15 @@ The gear icon opens a settings panel to customize the notebook:
 
 Everything is stored in `localStorage` and reapplied on load. The ruled/grid
 line spacing recalculates from the chosen text size, so the paper always
-lines up correctly no matter what size you pick.
+lines up correctly no matter what size you pick. Scrollbars (in the note,
+the page tabs, and the settings panel) pick up the current theme's accent
+color too.
+
+## Page date
+
+Each page has a small editable date field next to the title, next to the
+delete button. New pages are stamped with today's date automatically; click
+it to change it if you want to backdate a note.
 
 ## Run it locally
 

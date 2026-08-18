@@ -127,6 +127,11 @@ html, body {
   height: 100%;
 }
 
+html {
+  background: var(--desk);
+  transition: background 0.25s ease;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -140,6 +145,58 @@ body {
   color: var(--ink);
   overflow-y: auto;
   transition: background 0.25s ease;
+}
+
+/* ---------------------------------------------------------------
+   Theme-aware scrollbars — Firefox (scrollbar-color) + WebKit/Blink
+   (::-webkit-scrollbar). Applied everywhere something can scroll:
+   the page body, the tab rail, the settings panel, and the html
+   fallback for any outer overscroll.
+--------------------------------------------------------------- */
+html,
+.page-body,
+.tab-rail,
+.settings-panel {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) transparent;
+}
+
+html::-webkit-scrollbar,
+.page-body::-webkit-scrollbar,
+.tab-rail::-webkit-scrollbar,
+.settings-panel::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html::-webkit-scrollbar-track,
+.page-body::-webkit-scrollbar-track,
+.tab-rail::-webkit-scrollbar-track,
+.settings-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb,
+.page-body::-webkit-scrollbar-thumb,
+.tab-rail::-webkit-scrollbar-thumb,
+.settings-panel::-webkit-scrollbar-thumb {
+  background-color: var(--accent);
+  border-radius: 8px;
+  border: 2px solid var(--paper);
+  background-clip: padding-box;
+}
+
+html::-webkit-scrollbar-thumb:hover,
+.page-body::-webkit-scrollbar-thumb:hover,
+.tab-rail::-webkit-scrollbar-thumb:hover,
+.settings-panel::-webkit-scrollbar-thumb:hover {
+  background-color: var(--accent-dark);
+  background-clip: padding-box;
+}
+
+html::-webkit-scrollbar-corner,
+.page-body::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ---------------------------------------------------------------
@@ -210,6 +267,7 @@ body {
   text-overflow: ellipsis;
   box-shadow: 0 1px 2px rgba(30, 24, 10, 0.18);
   transform: translateX(0);
+  flex-shrink: 0;
   transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
@@ -235,6 +293,7 @@ body {
   line-height: 1;
   padding: 9px 12px;
   border-radius: 7px 16px 16px 7px;
+  flex-shrink: 0;
 }
 
 .tab-add:hover {
@@ -284,6 +343,32 @@ body {
   color: var(--ink-soft);
 }
 
+.page-date {
+  flex-shrink: 0;
+  width: 108px;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-soft);
+  text-align: right;
+  padding: 5px 7px;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.page-date:hover {
+  color: var(--ink);
+}
+
+.page-date:focus {
+  background: var(--tab-bg);
+  color: var(--ink);
+}
+
 .delete-btn {
   flex-shrink: 0;
   border: none;
@@ -322,6 +407,8 @@ body {
   font-size: var(--font-size);
   line-height: var(--line-height);
   color: var(--ink);
+  overflow-wrap: break-word;
+  word-break: break-word;
   margin-top: 10px;
   transition: padding 0.2s ease;
 }
@@ -645,6 +732,12 @@ textarea:focus-visible {
   }
 
   .page-head { padding-left: 0; }
+
+  .page-date {
+    width: 78px;
+    font-size: 11px;
+    padding: 5px 4px;
+  }
 
   .page-body {
     padding-left: 44px;

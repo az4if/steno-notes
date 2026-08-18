@@ -11,6 +11,7 @@
   const tabRail     = document.getElementById("tabRail");
   const pageEl      = document.getElementById("page");
   const titleEl     = document.getElementById("pageTitle");
+  const dateEl      = document.getElementById("pageDate");
   const bodyEl      = document.getElementById("pageBody");
   const deleteBtn   = document.getElementById("deleteBtn");
   const wordCount   = document.getElementById("wordCount");
@@ -50,6 +51,11 @@
     if (!Array.isArray(pages) || pages.length === 0) {
       pages = [freshPage("Page 1")];
     }
+    // Backfill dates for pages saved before this feature existed, so
+    // nothing shows up blank.
+    for (const p of pages) {
+      if (!p.date) p.date = formatToday();
+    }
     activeId = storedActiveId || pages[0].id;
     if (!pages.some(p => p.id === activeId)) activeId = pages[0].id;
   }
@@ -68,9 +74,24 @@
     return {
       id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random())),
       title: title || "",
+      date: formatToday(),
       body: "",
       updatedAt: Date.now(),
     };
+  }
+
+  // Human-friendly "Aug 18, 2026" style date for a fresh page. Kept as a
+  // plain editable string on the page itself, not regenerated on load, so
+  // a page always keeps the date it was created with unless you change it.
+  function formatToday() {
+    try {
+      return new Date().toLocaleDateString(undefined, {
+        month: "short", day: "numeric", year: "numeric",
+      });
+    } catch (e) {
+      const d = new Date();
+      return (d.getMonth() + 1) + "/" + d.getDate() + "/" + d.getFullYear();
+    }
   }
 
   // ---------------------------------------------------------------
@@ -191,6 +212,7 @@
     emptyState.hidden = true;
 
     titleEl.value = active.title;
+    dateEl.value = active.date || "";
     bodyEl.value = active.body;
     updateWordCount();
     savedAt.classList.remove("visible");
@@ -254,6 +276,7 @@
     if (!active) return;
 
     active.title = titleEl.value;
+    active.date = dateEl.value;
     active.body = bodyEl.value;
     active.updatedAt = Date.now();
     updateWordCount();
@@ -270,6 +293,7 @@
   // Wire up
   // ---------------------------------------------------------------
   titleEl.addEventListener("input", scheduleSave);
+  dateEl.addEventListener("input", scheduleSave);
   bodyEl.addEventListener("input", scheduleSave);
   deleteBtn.addEventListener("click", deleteActivePage);
   emptyAddBtn.addEventListener("click", addPage);
@@ -293,6 +317,7 @@
     const active = pages.find(p => p.id === activeId);
     if (active) {
       active.title = titleEl.value;
+      active.date = dateEl.value;
       active.body = bodyEl.value;
     }
     persist();
