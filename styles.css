@@ -204,8 +204,8 @@ html::-webkit-scrollbar-corner,
 --------------------------------------------------------------- */
 .notebook {
   width: 100%;
-  max-width: 880px;
-  height: min(82vh, 760px);
+  max-width: clamp(880px, 66vw, 1320px);
+  height: min(84vh, 820px);
   min-height: 460px;
   display: flex;
   background: var(--paper);
@@ -216,7 +216,7 @@ html::-webkit-scrollbar-corner,
     0 2px 6px rgba(30, 24, 10, 0.25);
   overflow: hidden;
   position: relative;
-  transition: background 0.25s ease;
+  transition: background 0.25s ease, max-width 0.2s ease;
 }
 
 /* faint stack-of-paper edge on the right, like pages behind the top sheet */
@@ -240,12 +240,13 @@ html::-webkit-scrollbar-corner,
 --------------------------------------------------------------- */
 .tab-rail {
   flex-shrink: 0;
-  width: 124px;
+  width: clamp(124px, 16%, 208px);
   display: flex;
   flex-direction: column;
   gap: 7px;
   padding: 24px 0 24px 14px;
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: thin;
 }
 
@@ -369,7 +370,8 @@ html::-webkit-scrollbar-corner,
   color: var(--ink);
 }
 
-.delete-btn {
+.delete-btn,
+.head-icon-btn {
   flex-shrink: 0;
   border: none;
   background: transparent;
@@ -384,6 +386,11 @@ html::-webkit-scrollbar-corner,
 .delete-btn:hover {
   color: var(--danger);
   background: rgba(178, 75, 60, 0.1);
+}
+
+.head-icon-btn:hover {
+  color: var(--accent);
+  background: var(--tab-bg);
 }
 
 .page-body {
@@ -434,6 +441,15 @@ html::-webkit-scrollbar-corner,
 
 .saved-at.visible {
   opacity: 1;
+}
+
+.offline-tag {
+  color: var(--margin);
+  font-weight: 600;
+}
+
+.offline-tag[hidden] {
+  display: none;
 }
 
 /* ---------------------------------------------------------------
@@ -506,7 +522,7 @@ html::-webkit-scrollbar-corner,
 /* ---------------------------------------------------------------
    Settings entry button
 --------------------------------------------------------------- */
-.settings-btn {
+.icon-btn {
   position: fixed;
   top: 20px;
   right: 20px;
@@ -525,8 +541,12 @@ html::-webkit-scrollbar-corner,
   transition: color 0.15s ease, background 0.25s ease;
 }
 
-.settings-btn:hover {
+.icon-btn:hover {
   color: var(--accent);
+}
+
+.search-btn {
+  right: 66px;
 }
 
 /* ---------------------------------------------------------------
@@ -682,6 +702,137 @@ html::-webkit-scrollbar-corner,
 .font-hand   { font-family: 'Caveat', cursive; font-size: 16px !important; }
 
 /* ---------------------------------------------------------------
+   Settings: backup hint + shortcuts reference
+--------------------------------------------------------------- */
+.settings-hint {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.shortcut-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcut-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+kbd {
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--tab-bg);
+  border: 1px solid var(--tab-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 2px 5px;
+  min-width: 1.4em;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------
+   Search panel
+--------------------------------------------------------------- */
+.search-panel {
+  max-width: 420px;
+}
+
+.search-input {
+  width: 100%;
+  margin-top: 4px;
+  border: 1.5px solid var(--paper-edge);
+  background: transparent;
+  outline: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--ink);
+  transition: border-color 0.15s ease;
+}
+
+.search-input:focus {
+  border-color: var(--accent);
+}
+
+.search-results {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.search-hint {
+  margin: 12px 2px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.search-result {
+  appearance: none;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  padding: 9px 10px;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.search-result:hover {
+  background: var(--tab-bg);
+}
+
+.search-result-title {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.search-result-snippet {
+  margin-top: 2px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------
+   Drag-to-reorder tabs
+--------------------------------------------------------------- */
+.tab-dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+
+.tab-drop-target {
+  box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--accent);
+}
+
+/* ---------------------------------------------------------------
    Focus visibility
 --------------------------------------------------------------- */
 button:focus-visible,
@@ -764,17 +915,68 @@ textarea:focus-visible {
 
   .page-foot { padding-left: 0; }
 
-  .settings-btn {
+  .icon-btn {
     top: auto;
     bottom: 14px;
     right: 14px;
   }
 
+  .search-btn {
+    top: auto;
+    bottom: 14px;
+    right: 62px;
+  }
+
   .page-foot {
-    padding-right: 50px;
+    padding-right: 96px;
+    flex-wrap: wrap;
+    row-gap: 4px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+}
+
+/* ---------------------------------------------------------------
+   Print: only the open page's title, date, and body should print.
+   Everything else (tabs, chrome, overlays) is stripped out so
+   "Print" doubles as a quick export-to-PDF for a single page.
+--------------------------------------------------------------- */
+@media print {
+  .tab-rail,
+  .icon-btn,
+  .settings-overlay,
+  .head-icon-btn,
+  .delete-btn,
+  .page-foot,
+  .empty-state {
+    display: none !important;
+  }
+
+  body, .notebook, .page {
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .page-head {
+    padding-left: 0 !important;
+    border-bottom: 1px solid #ccc;
+  }
+
+  .page-title, .page-date {
+    color: #000 !important;
+  }
+
+  .page-body {
+    color: #000 !important;
+    background: none !important;
+    padding-left: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    white-space: pre-wrap;
+  }
 }

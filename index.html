@@ -2,9 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Steno &mdash; a notebook that stays on your desk</title>
-<link rel="icon" href="data:,">
+<meta name="description" content="A little notebook that lives in your browser. Add pages, search across them, and everything autosaves &mdash; no backend, works offline.">
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#3e5c4e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Steno">
+
+<!-- Icons -->
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
@@ -40,6 +54,18 @@
           spellcheck="false"
           aria-label="Page date"
         />
+        <button id="duplicateBtn" class="head-icon-btn" title="Duplicate this page" aria-label="Duplicate this page">
+          <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
+            <rect x="7" y="7" width="9.5" height="9.5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M13 7V5.1A1.6 1.6 0 0 0 11.4 3.5H5.1A1.6 1.6 0 0 0 3.5 5.1v6.3A1.6 1.6 0 0 0 5.1 13H7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button id="printBtn" class="head-icon-btn" title="Print this page" aria-label="Print this page">
+          <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
+            <path d="M6 7V3.8h8V7M6 14.5h8V16.5H6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <rect x="3.5" y="7" width="13" height="6.2" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          </svg>
+        </button>
         <button id="deleteBtn" class="delete-btn" title="Tear out this page" aria-label="Delete this page">
           <svg viewBox="0 0 20 20" width="19" height="19" aria-hidden="true">
             <path d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6M6 6l.7 10.2a1.5 1.5 0 0 0 1.5 1.4h3.6a1.5 1.5 0 0 0 1.5-1.4L14 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -56,6 +82,7 @@
 
       <footer class="page-foot">
         <span id="wordCount">0 words</span>
+        <span id="offlineTag" class="offline-tag" hidden>Offline &mdash; still saving locally</span>
         <span id="savedAt" class="saved-at" aria-live="polite"></span>
       </footer>
     </main>
@@ -68,12 +95,44 @@
 
   </div>
 
-  <!-- Settings entry point: fixed to the viewport so it's reachable from any page -->
-  <button id="settingsBtn" class="settings-btn" aria-label="Open settings" title="Settings">
+  <!-- Search + Settings entry points: fixed to the viewport so they're reachable from any page -->
+  <button id="searchBtn" class="icon-btn search-btn" aria-label="Search pages" title="Search (Ctrl/Cmd+K)">
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+      <circle cx="8.7" cy="8.7" r="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M12.7 12.7L17 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <button id="settingsBtn" class="icon-btn" aria-label="Open settings" title="Settings">
     <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
       <path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
     </svg>
   </button>
+
+  <!-- Search panel -->
+  <div id="searchOverlay" class="settings-overlay" hidden>
+    <div class="settings-panel search-panel" role="dialog" aria-modal="true" aria-label="Search">
+      <header class="settings-head">
+        <h2>Search</h2>
+        <button id="searchClose" class="settings-close" aria-label="Close search">
+          <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+            <path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </header>
+
+      <input
+        id="searchInput"
+        class="search-input"
+        type="text"
+        placeholder="Search titles and notes&hellip;"
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="Search titles and notes"
+      />
+      <div id="searchResults" class="search-results"></div>
+    </div>
+  </div>
 
   <!-- Settings panel -->
   <div id="settingsOverlay" class="settings-overlay" hidden>
@@ -132,6 +191,40 @@
           <button class="option-btn" data-value="18">L</button>
           <button class="option-btn" data-value="21">XL</button>
         </div>
+      </section>
+
+      <section class="settings-section">
+        <h3>Notebook</h3>
+        <p class="settings-hint" id="notebookStats">&nbsp;</p>
+      </section>
+
+      <section class="settings-section">
+        <h3>Backup</h3>
+        <div class="option-row">
+          <button id="exportBtn" class="option-btn" type="button">Export backup</button>
+          <button id="importBtn" class="option-btn" type="button">Import backup</button>
+        </div>
+        <input id="importFile" type="file" accept="application/json,.json" hidden>
+        <p class="settings-hint">Export saves every page as a single JSON file you can keep or move to another browser. Importing adds pages alongside what's already here &mdash; it won't overwrite anything.</p>
+      </section>
+
+      <section class="settings-section">
+        <h3>App</h3>
+        <div class="option-row">
+          <button id="installBtn" class="option-btn" type="button" hidden>Install Steno</button>
+        </div>
+        <p class="settings-hint" id="installHint">Install Steno to open it like an app and use it offline. On iPhone/iPad: Share &rarr; Add to Home Screen.</p>
+      </section>
+
+      <section class="settings-section">
+        <h3>Shortcuts</h3>
+        <ul class="shortcut-list">
+          <li><span>New page</span><span class="shortcut-keys"><kbd>N</kbd></span></li>
+          <li><span>Search</span><span class="shortcut-keys"><kbd>Ctrl/&#8984;</kbd><kbd>K</kbd></span></li>
+          <li><span>Next / previous page</span><span class="shortcut-keys"><kbd>]</kbd><kbd>[</kbd></span></li>
+          <li><span>Delete current page</span><span class="shortcut-keys"><kbd>Ctrl/&#8984;</kbd><kbd>Shift</kbd><kbd>&#9003;</kbd></span></li>
+          <li><span>Close panel</span><span class="shortcut-keys"><kbd>Esc</kbd></span></li>
+        </ul>
       </section>
     </div>
   </div>
