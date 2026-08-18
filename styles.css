@@ -522,12 +522,11 @@ html::-webkit-scrollbar-corner,
   color: var(--ink-soft);
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(20, 16, 8, 0.25);
-  transition: color 0.15s ease, transform 0.2s ease, background 0.25s ease;
+  transition: color 0.15s ease, background 0.25s ease;
 }
 
 .settings-btn:hover {
   color: var(--accent);
-  transform: rotate(20deg);
 }
 
 /* ---------------------------------------------------------------
