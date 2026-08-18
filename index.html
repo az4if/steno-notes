@@ -7,7 +7,7 @@
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -57,6 +57,75 @@
       <button id="emptyAddBtn" class="empty-add-btn">Add a page</button>
     </div>
 
+  </div>
+
+  <!-- Settings entry point: fixed to the viewport so it's reachable from any page -->
+  <button id="settingsBtn" class="settings-btn" aria-label="Open settings" title="Settings">
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+      <path d="M8.6 2.6c.15-.75 1.65-.75 1.8 0l.16.8c.06.3.28.53.57.63.2.07.4.15.58.25.27.15.6.15.85-.02l.68-.46c.63-.43 1.68.4 1.34 1.08l-.36.73c-.14.28-.1.6.08.85.13.17.24.36.34.55.15.27.42.45.73.47l.82.06c.76.06.99 1.5.3 1.86l-.73.38c-.28.14-.44.42-.44.73 0 .2-.02.4-.05.6-.05.3.07.6.32.79l.65.5c.6.47.02 1.79-.73 1.79h-.82c-.31 0-.6.16-.75.43-.1.18-.22.35-.35.51-.19.24-.24.56-.13.85l.29.77c.27.71-.86 1.46-1.44.96l-.62-.54c-.23-.2-.56-.25-.85-.13-.19.08-.38.14-.58.2-.3.08-.53.31-.6.61l-.18.8c-.17.75-1.63.75-1.8 0l-.18-.8c-.07-.3-.3-.53-.6-.6-.2-.07-.4-.13-.58-.21-.29-.13-.62-.08-.85.13l-.62.54c-.58.5-1.71-.25-1.44-.96l.29-.77c.11-.29.06-.61-.13-.85-.13-.16-.25-.33-.35-.51-.15-.27-.44-.43-.75-.43h-.82c-.75 0-1.33-1.32-.73-1.79l.65-.5c.25-.19.37-.5.32-.79-.03-.2-.05-.4-.05-.6 0-.31-.16-.6-.44-.73l-.73-.38c-.7-.36-.46-1.8.3-1.86l.82-.06c.31-.02.58-.2.73-.47.1-.19.21-.38.34-.55.18-.25.22-.57.08-.85l-.36-.73c-.34-.68.71-1.51 1.34-1.08l.68.46c.26.17.58.17.85.02.18-.1.38-.18.58-.25.29-.1.5-.33.57-.63l.16-.8Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+      <circle cx="10" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    </svg>
+  </button>
+
+  <!-- Settings panel -->
+  <div id="settingsOverlay" class="settings-overlay" hidden>
+    <div class="settings-panel" role="dialog" aria-modal="true" aria-label="Settings">
+      <header class="settings-head">
+        <h2>Settings</h2>
+        <button id="settingsClose" class="settings-close" aria-label="Close settings">
+          <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+            <path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </header>
+
+      <section class="settings-section">
+        <h3>Theme</h3>
+        <div class="swatch-row" id="themeRow">
+          <button class="swatch" data-value="steno" style="--sw-a:#FBF3D9;--sw-b:#3e5c4e">
+            <span class="swatch-chip"></span>Steno
+          </button>
+          <button class="swatch" data-value="midnight" style="--sw-a:#20232a;--sw-b:#4fb7ad">
+            <span class="swatch-chip"></span>Midnight
+          </button>
+          <button class="swatch" data-value="manuscript" style="--sw-a:#f2e6c9;--sw-b:#6b3230">
+            <span class="swatch-chip"></span>Manuscript
+          </button>
+          <button class="swatch" data-value="slate" style="--sw-a:#f7f9fb;--sw-b:#3d4fc0">
+            <span class="swatch-chip"></span>Slate
+          </button>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3>Paper</h3>
+        <div class="option-row" id="paperRow">
+          <button class="option-btn" data-value="ruled">Ruled</button>
+          <button class="option-btn" data-value="grid">Grid</button>
+          <button class="option-btn" data-value="blank">Blank</button>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3>Typeface</h3>
+        <div class="option-row" id="fontRow">
+          <button class="option-btn font-mono" data-value="mono">Mono</button>
+          <button class="option-btn font-serif" data-value="serif">Serif</button>
+          <button class="option-btn font-sans" data-value="sans">Sans</button>
+          <button class="option-btn font-hand" data-value="hand">Hand</button>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3>Text size</h3>
+        <div class="option-row" id="sizeRow">
+          <button class="option-btn" data-value="14">S</button>
+          <button class="option-btn" data-value="16">M</button>
+          <button class="option-btn" data-value="18">L</button>
+          <button class="option-btn" data-value="21">XL</button>
+        </div>
+      </section>
+    </div>
   </div>
 
   <script src="app.js"></script>

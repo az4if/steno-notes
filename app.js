@@ -1,27 +1,40 @@
 (() => {
   "use strict";
 
-  const STORAGE_KEY = "steno.pages.v1";
-  const ACTIVE_KEY = "steno.active.v1";
+  const STORAGE_KEY  = "steno.pages.v1";
+  const ACTIVE_KEY   = "steno.active.v1";
+  const SETTINGS_KEY = "steno.settings.v1";
 
-  const tabRail   = document.getElementById("tabRail");
-  const pageEl    = document.getElementById("page");
-  const titleEl   = document.getElementById("pageTitle");
-  const bodyEl    = document.getElementById("pageBody");
-  const deleteBtn = document.getElementById("deleteBtn");
-  const wordCount = document.getElementById("wordCount");
-  const savedAt   = document.getElementById("savedAt");
-  const emptyState  = document.getElementById("emptyState");
-  const emptyAddBtn = document.getElementById("emptyAddBtn");
+  const DEFAULT_SETTINGS = { theme: "steno", paper: "ruled", font: "mono", size: 15 };
+
+  const root       = document.documentElement;
+  const tabRail     = document.getElementById("tabRail");
+  const pageEl      = document.getElementById("page");
+  const titleEl     = document.getElementById("pageTitle");
+  const bodyEl      = document.getElementById("pageBody");
+  const deleteBtn   = document.getElementById("deleteBtn");
+  const wordCount   = document.getElementById("wordCount");
+  const savedAt     = document.getElementById("savedAt");
+  const emptyState    = document.getElementById("emptyState");
+  const emptyAddBtn   = document.getElementById("emptyAddBtn");
+
+  const settingsBtn     = document.getElementById("settingsBtn");
+  const settingsOverlay = document.getElementById("settingsOverlay");
+  const settingsClose   = document.getElementById("settingsClose");
+  const themeRow  = document.getElementById("themeRow");
+  const paperRow  = document.getElementById("paperRow");
+  const fontRow   = document.getElementById("fontRow");
+  const sizeRow   = document.getElementById("sizeRow");
 
   /** @type {{id:string, title:string, body:string, updatedAt:number}[]} */
   let pages = [];
   let activeId = null;
   let saveTimer = null;
   let savedFlashTimer = null;
+  let settings = Object.assign({}, DEFAULT_SETTINGS);
 
   // ---------------------------------------------------------------
-  // Persistence
+  // Pages: persistence
   // ---------------------------------------------------------------
   function load() {
     let storedActiveId = null;
@@ -58,6 +71,81 @@
       body: "",
       updatedAt: Date.now(),
     };
+  }
+
+  // ---------------------------------------------------------------
+  // Settings: persistence + dynamic layout application
+  // ---------------------------------------------------------------
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      const overrides = (parsed && typeof parsed === "object") ? parsed : {};
+      settings = Object.assign({}, DEFAULT_SETTINGS, overrides);
+    } catch (e) {
+      settings = Object.assign({}, DEFAULT_SETTINGS);
+    }
+  }
+
+  function persistSettings() {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch (e) {
+      // ignore — settings just won't survive a reload this session
+    }
+  }
+
+  // Derive a matching line-height and rule-line offset from a font size,
+  // so the ruled/grid background always lines up with the text baseline
+  // no matter what size is picked. Keeps the "paper" genuinely dynamic
+  // instead of hard-coded to one font size.
+  function computeLineMetrics(fontSize) {
+    const lineHeight = Math.round(fontSize * 1.8);
+    const offset = Math.round(lineHeight * 0.3);
+    return { lineHeight, offset };
+  }
+
+  function applySettings() {
+    root.dataset.theme = settings.theme;
+    root.dataset.paper = settings.paper;
+    root.dataset.font = settings.font;
+
+    const { lineHeight, offset } = computeLineMetrics(settings.size);
+    root.style.setProperty("--font-size", settings.size + "px");
+    root.style.setProperty("--line-height", lineHeight + "px");
+    root.style.setProperty("--rule-offset", offset + "px");
+
+    setActiveButton(themeRow, settings.theme);
+    setActiveButton(paperRow, settings.paper);
+    setActiveButton(fontRow, settings.font);
+    setActiveButton(sizeRow, String(settings.size));
+  }
+
+  function setActiveButton(row, value) {
+    if (!row) return;
+    const children = Array.prototype.slice.call(row.children);
+    for (const btn of children) {
+      btn.classList.toggle("active", btn.dataset.value === String(value));
+    }
+  }
+
+  function wireSettingsRow(row, key, parseAsNumber) {
+    if (!row) return;
+    row.addEventListener("click", (e) => {
+      const btn = e.target.closest(".swatch, .option-btn");
+      if (!btn || !row.contains(btn)) return;
+      settings[key] = parseAsNumber ? Number(btn.dataset.value) : btn.dataset.value;
+      persistSettings();
+      applySettings();
+    });
+  }
+
+  function openSettings() {
+    settingsOverlay.hidden = false;
+  }
+
+  function closeSettings() {
+    settingsOverlay.hidden = true;
   }
 
   // ---------------------------------------------------------------
@@ -186,6 +274,20 @@
   deleteBtn.addEventListener("click", deleteActivePage);
   emptyAddBtn.addEventListener("click", addPage);
 
+  settingsBtn.addEventListener("click", openSettings);
+  settingsClose.addEventListener("click", closeSettings);
+  settingsOverlay.addEventListener("click", (e) => {
+    if (e.target === settingsOverlay) closeSettings();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !settingsOverlay.hidden) closeSettings();
+  });
+
+  wireSettingsRow(themeRow, "theme", false);
+  wireSettingsRow(paperRow, "paper", false);
+  wireSettingsRow(fontRow, "font", false);
+  wireSettingsRow(sizeRow, "size", true);
+
   // Save immediately before the tab closes so nothing is lost.
   window.addEventListener("beforeunload", () => {
     const active = pages.find(p => p.id === activeId);
@@ -196,6 +298,8 @@
     persist();
   });
 
+  loadSettings();
+  applySettings();
   load();
   render();
 })();
