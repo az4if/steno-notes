@@ -208,6 +208,7 @@ html::-webkit-scrollbar-corner,
   height: min(84vh, 820px);
   min-height: 460px;
   display: flex;
+  flex-direction: column;
   background: var(--paper);
   border-radius: 3px;
   box-shadow:
@@ -217,6 +218,61 @@ html::-webkit-scrollbar-corner,
   overflow: hidden;
   position: relative;
   transition: background 0.25s ease, max-width 0.2s ease;
+}
+
+.notebook-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* ---------------------------------------------------------------
+   Notebook switcher header bar
+--------------------------------------------------------------- */
+.notebook-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(128, 118, 100, 0.16);
+  padding: 8px 10px;
+}
+
+.notebook-name-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  max-width: 100%;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.notebook-name-btn:hover {
+  background: var(--tab-bg);
+  color: var(--ink);
+}
+
+.notebook-name-icon {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+#notebookNameLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.notebook-name-caret {
+  flex-shrink: 0;
+  opacity: 0.6;
 }
 
 /* faint stack-of-paper edge on the right, like pages behind the top sheet */
@@ -263,13 +319,33 @@ html::-webkit-scrollbar-corner,
   background: var(--tab-bg);
   padding: 10px 12px;
   border-radius: 7px 16px 16px 7px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   box-shadow: 0 1px 2px rgba(30, 24, 10, 0.18);
   transform: translateX(0);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.tab-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-color-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.tab-pin-icon {
+  flex-shrink: 0;
+  opacity: 0.75;
 }
 
 .tab:hover {
@@ -391,6 +467,78 @@ html::-webkit-scrollbar-corner,
 .head-icon-btn:hover {
   color: var(--accent);
   background: var(--tab-bg);
+}
+
+.head-icon-btn.pinned {
+  color: var(--accent);
+  background: var(--tab-bg);
+}
+
+.color-picker-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.color-dot-btn {
+  align-items: center;
+  justify-content: center;
+}
+
+.color-dot-preview {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink-soft);
+  background: transparent;
+}
+
+.color-dot-preview.has-color {
+  border-color: transparent;
+  background: var(--dot);
+}
+
+.color-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 15;
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: var(--paper);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.color-popover[hidden] {
+  display: none;
+}
+
+.color-swatch {
+  appearance: none;
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--sw);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.color-swatch:hover {
+  transform: scale(1.15);
+}
+
+.color-swatch-none {
+  background: transparent;
+  position: relative;
+}
+
+.color-swatch-none::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  background: linear-gradient(45deg, transparent 46%, var(--danger) 46%, var(--danger) 54%, transparent 54%);
 }
 
 .page-body {
@@ -657,6 +805,11 @@ html::-webkit-scrollbar-corner,
   border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
+.swatch-chip-auto {
+  background: linear-gradient(135deg, #FBF3D9 0%, #FBF3D9 49%, #20232a 51%, #20232a 100%);
+  box-shadow: inset 0 0 0 9px transparent;
+}
+
 .swatch:hover {
   color: var(--ink);
 }
@@ -709,6 +862,25 @@ html::-webkit-scrollbar-corner,
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--ink-soft);
+}
+
+.settings-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.settings-checkbox input {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
 }
 
 .shortcut-list {
@@ -858,6 +1030,14 @@ textarea:focus-visible {
 
   .notebook::after { display: none; }
 
+  .notebook-body {
+    flex-direction: column;
+  }
+
+  .notebook-header {
+    padding: 6px 10px;
+  }
+
   .tab-rail {
     width: auto;
     flex-direction: row;
@@ -881,10 +1061,20 @@ textarea:focus-visible {
     padding: 16px 16px 12px 16px;
   }
 
-  .page-head { padding-left: 0; }
+  .page-head {
+    padding-left: 0;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .page-title {
+    flex-basis: 100%;
+  }
 
   .page-date {
-    width: 78px;
+    width: auto;
+    flex: 1;
+    text-align: left;
     font-size: 11px;
     padding: 5px 4px;
   }
@@ -950,6 +1140,7 @@ textarea:focus-visible {
   .head-icon-btn,
   .delete-btn,
   .page-foot,
+  .notebook-header,
   .empty-state {
     display: none !important;
   }
@@ -979,4 +1170,200 @@ textarea:focus-visible {
     overflow: visible !important;
     white-space: pre-wrap;
   }
+}
+
+/* ---------------------------------------------------------------
+   Notebook list (notebooks switcher + template picker reuse this)
+--------------------------------------------------------------- */
+.notebook-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.notebook-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.notebook-list-item:hover {
+  background: var(--tab-bg);
+}
+
+.notebook-list-item.active {
+  background: var(--accent);
+}
+
+.notebook-list-item.active .notebook-list-name,
+.notebook-list-item.active .notebook-list-meta {
+  color: var(--accent-ink);
+}
+
+.notebook-list-name {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.notebook-list-meta {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-top: 1px;
+}
+
+.notebook-list-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.notebook-list-delete {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 5px;
+  border-radius: 6px;
+  display: flex;
+  cursor: pointer;
+}
+
+.notebook-list-delete:hover {
+  color: var(--danger);
+  background: rgba(178, 75, 60, 0.15);
+}
+
+.notebook-new-btn {
+  margin-top: 10px;
+  width: 100%;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------
+   PIN lock screen
+--------------------------------------------------------------- */
+.lock-overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 100;
+  background: var(--desk);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.lock-overlay[hidden] {
+  display: none;
+}
+
+.lock-panel {
+  width: 100%;
+  max-width: 280px;
+  background: var(--paper);
+  border-radius: 14px;
+  padding: 28px 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.lock-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.lock-pin-input {
+  width: 100%;
+  border: 1.5px solid var(--paper-edge);
+  background: transparent;
+  outline: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 0.3em;
+  text-align: center;
+  color: var(--ink);
+}
+
+.lock-pin-input:focus {
+  border-color: var(--accent);
+}
+
+.lock-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.lock-error[hidden] {
+  display: none;
+}
+
+.lock-shake {
+  animation: lock-shake 0.35s;
+}
+
+@keyframes lock-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+/* ---------------------------------------------------------------
+   Undo-delete toast
+--------------------------------------------------------------- */
+.undo-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 12px 16px;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-display);
+  font-size: 13px;
+}
+
+.undo-toast[hidden] {
+  display: none;
+}
+
+.undo-toast-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--accent-ink, #fff);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  flex-shrink: 0;
 }

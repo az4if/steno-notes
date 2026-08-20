@@ -28,6 +28,22 @@
 
   <div class="notebook" id="notebook">
 
+    <!-- Notebook switcher: which notebook (collection of pages) is open -->
+    <header class="notebook-header">
+      <button id="notebookSwitchBtn" class="notebook-name-btn" aria-haspopup="true">
+        <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true" class="notebook-name-icon">
+          <path d="M4 3.5h9A1.5 1.5 0 0 1 14.5 5v11a1.5 1.5 0 0 0-1.5-1.5H4z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+          <path d="M4 3.5v11" stroke="currentColor" stroke-width="1.3"/>
+        </svg>
+        <span id="notebookNameLabel">Notebook</span>
+        <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true" class="notebook-name-caret">
+          <path d="M5 7.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </header>
+
+    <div class="notebook-body">
+
     <!-- Tab rail: one tab per page, plus an "add" tab -->
     <nav class="tab-rail" id="tabRail" aria-label="Pages">
       <!-- tabs injected by app.js -->
@@ -54,6 +70,26 @@
           spellcheck="false"
           aria-label="Page date"
         />
+        <button id="pinBtn" class="head-icon-btn" title="Pin this page" aria-label="Pin this page">
+          <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+            <path d="M8 3h4l-.6 5.3L14 11.2v1.4H6v-1.4l2.6-2.9L8 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M10 12.6V17.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <div class="color-picker-wrap">
+          <button id="colorBtn" class="head-icon-btn color-dot-btn" title="Color tag" aria-label="Color tag" aria-haspopup="true">
+            <span id="colorDotPreview" class="color-dot-preview"></span>
+          </button>
+          <div id="colorPopover" class="color-popover" hidden>
+            <button type="button" class="color-swatch color-swatch-none" data-color="" aria-label="No color"></button>
+            <button type="button" class="color-swatch" data-color="red" style="--sw:#c0564f" aria-label="Red"></button>
+            <button type="button" class="color-swatch" data-color="orange" style="--sw:#c9853e" aria-label="Orange"></button>
+            <button type="button" class="color-swatch" data-color="yellow" style="--sw:#c7ab41" aria-label="Yellow"></button>
+            <button type="button" class="color-swatch" data-color="green" style="--sw:#4f8f5b" aria-label="Green"></button>
+            <button type="button" class="color-swatch" data-color="blue" style="--sw:#3f6fb0" aria-label="Blue"></button>
+            <button type="button" class="color-swatch" data-color="purple" style="--sw:#7a539c" aria-label="Purple"></button>
+          </div>
+        </div>
         <button id="duplicateBtn" class="head-icon-btn" title="Duplicate this page" aria-label="Duplicate this page">
           <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
             <rect x="7" y="7" width="9.5" height="9.5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.6"/>
@@ -93,6 +129,56 @@
       <button id="emptyAddBtn" class="empty-add-btn">Add a page</button>
     </div>
 
+    </div>
+  </div>
+
+  <!-- PIN lock screen: covers everything until the correct PIN is entered.
+       This is a privacy screen, not real security — see Settings for the
+       plain-language caveat shown to the person setting a PIN. -->
+  <div id="lockOverlay" class="lock-overlay" hidden>
+    <div class="lock-panel">
+      <p class="lock-title">Notebook locked</p>
+      <input id="lockPinInput" class="lock-pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="12" aria-label="Enter PIN" placeholder="&bull;&bull;&bull;&bull;">
+      <button id="lockUnlockBtn" class="empty-add-btn" type="button">Unlock</button>
+      <p class="lock-error" id="lockError" hidden>Wrong PIN — try again.</p>
+    </div>
+  </div>
+
+  <!-- Notebooks switcher -->
+  <div id="notebooksOverlay" class="settings-overlay" hidden>
+    <div class="settings-panel search-panel" role="dialog" aria-modal="true" aria-label="Notebooks">
+      <header class="settings-head">
+        <h2>Notebooks</h2>
+        <button id="notebooksClose" class="settings-close" aria-label="Close">
+          <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+            <path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </header>
+      <div id="notebookList" class="notebook-list"></div>
+      <button id="newNotebookBtn" class="option-btn notebook-new-btn" type="button">+ New notebook</button>
+    </div>
+  </div>
+
+  <!-- New-page template picker -->
+  <div id="templateOverlay" class="settings-overlay" hidden>
+    <div class="settings-panel search-panel" role="dialog" aria-modal="true" aria-label="New page">
+      <header class="settings-head">
+        <h2>New page</h2>
+        <button id="templateClose" class="settings-close" aria-label="Close">
+          <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+            <path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </header>
+      <div id="templateList" class="notebook-list"></div>
+    </div>
+  </div>
+
+  <!-- Undo-delete toast -->
+  <div id="undoToast" class="undo-toast" hidden>
+    <span id="undoToastLabel">Page deleted</span>
+    <button id="undoBtn" class="undo-toast-btn" type="button">Undo</button>
   </div>
 
   <!-- Search + Settings entry points: fixed to the viewport so they're reachable from any page -->
@@ -161,7 +247,20 @@
           <button class="swatch" data-value="slate" style="--sw-a:#f7f9fb;--sw-b:#3d4fc0">
             <span class="swatch-chip"></span>Slate
           </button>
+          <button class="swatch" data-value="auto" style="--sw-a:#c7d0da;--sw-b:#2b2f36">
+            <span class="swatch-chip swatch-chip-auto"></span>Auto
+          </button>
         </div>
+      </section>
+
+      <section class="settings-section">
+        <h3>Organize</h3>
+        <div class="option-row" id="sortRow">
+          <button class="option-btn" data-value="manual">Manual</button>
+          <button class="option-btn" data-value="title">Title A&ndash;Z</button>
+          <button class="option-btn" data-value="recent">Recently edited</button>
+        </div>
+        <p class="settings-hint">Manual order is what drag-and-drop reorders. Switch back to it any time without losing your arrangement.</p>
       </section>
 
       <section class="settings-section">
@@ -206,6 +305,20 @@
         </div>
         <input id="importFile" type="file" accept="application/json,.json" hidden>
         <p class="settings-hint">Export saves every page as a single JSON file you can keep or move to another browser. Importing adds pages alongside what's already here &mdash; it won't overwrite anything.</p>
+        <label class="settings-checkbox">
+          <input type="checkbox" id="encryptBackupToggle">
+          Encrypt exports with a password
+        </label>
+        <p class="settings-hint">When this is on, Export asks for a password and locks the file with it; Import will ask for that same password to read an encrypted file back.</p>
+      </section>
+
+      <section class="settings-section">
+        <h3>Privacy</h3>
+        <div class="option-row">
+          <button id="setPinBtn" class="option-btn" type="button">Set a PIN</button>
+          <button id="removePinBtn" class="option-btn" type="button" hidden>Remove PIN</button>
+        </div>
+        <p class="settings-hint">Asks for a short PIN before showing the notebook on this device. This is a privacy screen for casual snooping, not real security &mdash; the notes are still stored as plain text in this browser, so it won't stop anyone with access to the browser's developer tools.</p>
       </section>
 
       <section class="settings-section">

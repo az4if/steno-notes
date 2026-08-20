@@ -1,11 +1,30 @@
 (() => {
   "use strict";
 
-  const STORAGE_KEY  = "steno.pages.v1";
-  const ACTIVE_KEY   = "steno.active.v1";
-  const SETTINGS_KEY = "steno.settings.v1";
+  const STORAGE_KEY        = "steno.pages.v1";        // legacy, migrated from
+  const ACTIVE_KEY         = "steno.active.v1";        // legacy, migrated from
+  const SETTINGS_KEY       = "steno.settings.v1";
+  const NOTEBOOKS_KEY      = "steno.notebooks.v1";
+  const CURRENT_NB_KEY     = "steno.currentNotebook.v1";
+  const PIN_HASH_KEY       = "steno.pinHash.v1";
+  const UNLOCKED_KEY       = "steno.unlocked.v1"; // sessionStorage
 
-  const DEFAULT_SETTINGS = { theme: "steno", paper: "ruled", font: "mono", size: 15 };
+  const DEFAULT_SETTINGS = {
+    theme: "steno", paper: "ruled", font: "mono", size: 15,
+    sort: "manual", encryptBackups: false,
+  };
+
+  const COLOR_HEX = {
+    red: "#c0564f", orange: "#c9853e", yellow: "#c7ab41",
+    green: "#4f8f5b", blue: "#3f6fb0", purple: "#7a539c",
+  };
+
+  const TEMPLATES = [
+    { id: "blank",   name: "Blank page",    desc: "Start with a clean page.", body: "" },
+    { id: "journal", name: "Daily journal", desc: "A simple daily reflection.", body: "Today I\u2026\n\nGrateful for\u2026\n\nTomorrow I will\u2026" },
+    { id: "meeting", name: "Meeting notes", desc: "Attendees, agenda, action items.", body: "Attendees:\n\nAgenda:\n\nNotes:\n\nAction items:\n" },
+    { id: "todo",    name: "To-do list",    desc: "A quick checklist.", body: "- [ ] \n- [ ] \n- [ ] " },
+  ];
 
   const root       = document.documentElement;
   const tabRail     = document.getElementById("tabRail");
@@ -26,10 +45,14 @@
   const paperRow  = document.getElementById("paperRow");
   const fontRow   = document.getElementById("fontRow");
   const sizeRow   = document.getElementById("sizeRow");
+  const sortRow   = document.getElementById("sortRow");
 
   const exportBtn  = document.getElementById("exportBtn");
   const importBtn  = document.getElementById("importBtn");
   const importFile = document.getElementById("importFile");
+  const encryptBackupToggle = document.getElementById("encryptBackupToggle");
+  const setPinBtn    = document.getElementById("setPinBtn");
+  const removePinBtn = document.getElementById("removePinBtn");
 
   const searchBtn      = document.getElementById("searchBtn");
   const searchOverlay  = document.getElementById("searchOverlay");
@@ -44,57 +67,205 @@
   const installBtn     = document.getElementById("installBtn");
   const installHint    = document.getElementById("installHint");
 
-  /** @type {{id:string, title:string, body:string, updatedAt:number}[]} */
+  const pinBtn          = document.getElementById("pinBtn");
+  const colorBtn        = document.getElementById("colorBtn");
+  const colorDotPreview = document.getElementById("colorDotPreview");
+  const colorPopover    = document.getElementById("colorPopover");
+  const colorPickerWrap = document.querySelector(".color-picker-wrap");
+
+  const notebookSwitchBtn  = document.getElementById("notebookSwitchBtn");
+  const notebookNameLabel  = document.getElementById("notebookNameLabel");
+  const notebooksOverlay   = document.getElementById("notebooksOverlay");
+  const notebooksClose     = document.getElementById("notebooksClose");
+  const notebookList       = document.getElementById("notebookList");
+  const newNotebookBtn     = document.getElementById("newNotebookBtn");
+
+  const templateOverlay = document.getElementById("templateOverlay");
+  const templateClose   = document.getElementById("templateClose");
+  const templateList    = document.getElementById("templateList");
+
+  const lockOverlay   = document.getElementById("lockOverlay");
+  const lockPanel      = document.querySelector(".lock-panel");
+  const lockPinInput  = document.getElementById("lockPinInput");
+  const lockUnlockBtn = document.getElementById("lockUnlockBtn");
+  const lockError      = document.getElementById("lockError");
+
+  const undoToast      = document.getElementById("undoToast");
+  const undoToastLabel = document.getElementById("undoToastLabel");
+  const undoBtn        = document.getElementById("undoBtn");
+
+  /** @type {{id:string, name:string, pages:object[], activePageId:string}[]} */
+  let notebooks = [];
+  let currentNotebookId = null;
+  /** @type {{id:string, title:string, date:string, body:string, updatedAt:number, pinned:boolean, color:string}[]} */
   let pages = [];
   let activeId = null;
   let saveTimer = null;
   let savedFlashTimer = null;
   let settings = Object.assign({}, DEFAULT_SETTINGS);
   let dragState = null;
+  let pendingDelete = null;
+  let undoTimer = null;
 
-  // ---------------------------------------------------------------
-  // Pages: persistence
-  // ---------------------------------------------------------------
-  function load() {
-    let storedActiveId = null;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      pages = raw ? JSON.parse(raw) : [];
-      storedActiveId = localStorage.getItem(ACTIVE_KEY);
-    } catch (e) {
-      // localStorage unavailable (private mode, disabled storage, etc.) —
-      // fall back to an in-memory notebook for this session.
-      pages = [];
-    }
-    if (!Array.isArray(pages) || pages.length === 0) {
-      pages = [freshPage("Page 1")];
-    }
-    // Backfill dates for pages saved before this feature existed, so
-    // nothing shows up blank.
-    for (const p of pages) {
-      if (!p.date) p.date = formatToday();
-    }
-    activeId = storedActiveId || pages[0].id;
-    if (!pages.some(p => p.id === activeId)) activeId = pages[0].id;
+  function freshId() {
+    return crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random());
   }
 
-  function persist() {
+  // ---------------------------------------------------------------
+  // Notebooks + pages: persistence
+  // ---------------------------------------------------------------
+  function loadNotebooks() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(pages));
-      localStorage.setItem(ACTIVE_KEY, activeId);
+      const raw = localStorage.getItem(NOTEBOOKS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) notebooks = parsed;
+      }
+    } catch (e) {
+      notebooks = [];
+    }
+
+    if (!Array.isArray(notebooks) || notebooks.length === 0) {
+      // Migrate from the old single flat-notebook format, if there's one
+      // sitting in storage from before notebooks existed.
+      let legacyPages = null;
+      let legacyActive = null;
+      try {
+        const rawPages = localStorage.getItem(STORAGE_KEY);
+        legacyPages = rawPages ? JSON.parse(rawPages) : null;
+        legacyActive = localStorage.getItem(ACTIVE_KEY);
+      } catch (e) { /* ignore */ }
+
+      if (Array.isArray(legacyPages) && legacyPages.length > 0) {
+        notebooks = [{
+          id: freshId(),
+          name: "Notebook 1",
+          pages: legacyPages,
+          activePageId: legacyActive || legacyPages[0].id,
+        }];
+      } else {
+        const p = freshPage("Page 1");
+        notebooks = [{ id: freshId(), name: "Notebook 1", pages: [p], activePageId: p.id }];
+      }
+    }
+
+    // Backfill fields for data saved before newer features existed.
+    for (const nb of notebooks) {
+      if (!Array.isArray(nb.pages) || nb.pages.length === 0) {
+        const p = freshPage("Page 1");
+        nb.pages = [p];
+      }
+      for (const p of nb.pages) {
+        if (!p.date) p.date = formatToday();
+        if (typeof p.pinned !== "boolean") p.pinned = false;
+        if (typeof p.color !== "string") p.color = "";
+      }
+      if (!nb.activePageId || !nb.pages.some(pg => pg.id === nb.activePageId)) {
+        nb.activePageId = nb.pages[0].id;
+      }
+      if (!nb.name) nb.name = "Untitled notebook";
+    }
+
+    let storedCurrent = null;
+    try { storedCurrent = localStorage.getItem(CURRENT_NB_KEY); } catch (e) { /* ignore */ }
+    currentNotebookId = (storedCurrent && notebooks.some(n => n.id === storedCurrent))
+      ? storedCurrent
+      : notebooks[0].id;
+
+    const current = getCurrentNotebook();
+    pages = current.pages;
+    activeId = current.activePageId;
+  }
+
+  function persistNotebooks() {
+    const current = getCurrentNotebook();
+    if (current) current.activePageId = activeId;
+    try {
+      localStorage.setItem(NOTEBOOKS_KEY, JSON.stringify(notebooks));
+      localStorage.setItem(CURRENT_NB_KEY, currentNotebookId);
     } catch (e) {
       // Storage unavailable or full — keep working in memory for this
       // session rather than throwing and breaking the UI.
     }
   }
 
+  function getCurrentNotebook() {
+    return notebooks.find(n => n.id === currentNotebookId) || notebooks[0];
+  }
+
+  function switchNotebook(id) {
+    const nb = notebooks.find(n => n.id === id);
+    if (!nb) return;
+    currentNotebookId = id;
+    pages = nb.pages;
+    activeId = nb.activePageId && pages.some(p => p.id === nb.activePageId)
+      ? nb.activePageId
+      : (pages[0] ? pages[0].id : null);
+    persistNotebooks();
+    updateNotebookHeader();
+    render();
+  }
+
+  function createNotebook() {
+    const name = window.prompt("Name this notebook:", "Notebook " + (notebooks.length + 1));
+    if (name === null) return;
+    const p = freshPage("Page 1");
+    const nb = {
+      id: freshId(),
+      name: name.trim() || ("Notebook " + (notebooks.length + 1)),
+      pages: [p],
+      activePageId: p.id,
+    };
+    notebooks.push(nb);
+    switchNotebook(nb.id);
+    closeNotebooks();
+  }
+
+  function renameNotebook(nb) {
+    const newName = window.prompt("Rename notebook:", nb.name);
+    if (newName === null) return;
+    nb.name = newName.trim() || nb.name;
+    persistNotebooks();
+    renderNotebookList();
+    updateNotebookHeader();
+  }
+
+  function deleteNotebook(id) {
+    if (notebooks.length <= 1) return;
+    const nb = notebooks.find(n => n.id === id);
+    if (!nb) return;
+    const count = nb.pages.length;
+    const ok = window.confirm(
+      "Delete notebook \"" + nb.name + "\" and " + count + (count === 1 ? " page" : " pages") +
+      " inside it? This can't be undone."
+    );
+    if (!ok) return;
+
+    const idx = notebooks.findIndex(n => n.id === id);
+    notebooks.splice(idx, 1);
+
+    if (currentNotebookId === id) {
+      switchNotebook(notebooks[Math.max(0, idx - 1)].id);
+    } else {
+      persistNotebooks();
+    }
+    renderNotebookList();
+  }
+
+  function updateNotebookHeader() {
+    const nb = getCurrentNotebook();
+    notebookNameLabel.textContent = nb ? nb.name : "Notebook";
+  }
+
   function freshPage(title) {
     return {
-      id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random())),
+      id: freshId(),
       title: title || "",
       date: formatToday(),
       body: "",
       updatedAt: Date.now(),
+      pinned: false,
+      color: "",
     };
   }
 
@@ -115,6 +286,7 @@
   // ---------------------------------------------------------------
   // Settings: persistence + dynamic layout application
   // ---------------------------------------------------------------
+
   function loadSettings() {
     try {
       const raw = localStorage.getItem(SETTINGS_KEY);
@@ -144,8 +316,14 @@
     return { lineHeight, offset };
   }
 
+  function resolveTheme(themeSetting) {
+    if (themeSetting !== "auto") return themeSetting;
+    const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    return prefersDark ? "midnight" : "steno";
+  }
+
   function applySettings() {
-    root.dataset.theme = settings.theme;
+    root.dataset.theme = resolveTheme(settings.theme);
     root.dataset.paper = settings.paper;
     root.dataset.font = settings.font;
 
@@ -158,6 +336,9 @@
     setActiveButton(paperRow, settings.paper);
     setActiveButton(fontRow, settings.font);
     setActiveButton(sizeRow, String(settings.size));
+    setActiveButton(sortRow, settings.sort);
+
+    if (notebooks.length > 0) renderTabs();
   }
 
   function setActiveButton(row, value) {
@@ -285,25 +466,105 @@
   }
 
   // ---------------------------------------------------------------
-  // Backup: export / import
+  // Backup: export / import, optionally password-encrypted
+  //
+  // Encryption uses the browser's real Web Crypto API (PBKDF2 + AES-GCM)
+  // — this is genuine encryption of the exported file, unlike the PIN
+  // lock below which is only a screen, not real security.
   // ---------------------------------------------------------------
-  function exportBackup() {
-    const payload = {
-      app: "steno",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      pages: pages,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  function hasSubtleCrypto() {
+    return !!(window.crypto && window.crypto.subtle);
+  }
+
+  function bufToBase64(bytes) {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  function base64ToBuf(b64) {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  function deriveKey(password, salt, usage) {
+    const enc = new TextEncoder().encode(password);
+    return crypto.subtle.importKey("raw", enc, "PBKDF2", false, ["deriveKey"]).then(keyMaterial =>
+      crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt: salt, iterations: 150000, hash: "SHA-256" },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        [usage]
+      )
+    );
+  }
+
+  function encryptString(plaintext, password) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    return deriveKey(password, salt, "encrypt").then(key => {
+      const enc = new TextEncoder().encode(plaintext);
+      return crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, enc).then(cipherBuf => ({
+        app: "steno",
+        encrypted: true,
+        version: 1,
+        salt: bufToBase64(salt),
+        iv: bufToBase64(iv),
+        data: bufToBase64(new Uint8Array(cipherBuf)),
+      }));
+    });
+  }
+
+  function decryptString(payload, password) {
+    const salt = base64ToBuf(payload.salt);
+    const iv = base64ToBuf(payload.iv);
+    const data = base64ToBuf(payload.data);
+    return deriveKey(password, salt, "decrypt").then(key =>
+      crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, data).then(plainBuf =>
+        new TextDecoder().decode(plainBuf)
+      )
+    );
+  }
+
+  function downloadJSON(obj, encrypted) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     const stamp = new Date().toISOString().slice(0, 10);
-    a.download = "steno-backup-" + stamp + ".json";
+    a.download = "steno-backup-" + stamp + (encrypted ? "-encrypted" : "") + ".json";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function exportBackup() {
+    const payload = {
+      app: "steno",
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      notebookName: getCurrentNotebook() ? getCurrentNotebook().name : "",
+      pages: pages,
+    };
+
+    if (encryptBackupToggle && encryptBackupToggle.checked) {
+      if (!hasSubtleCrypto()) {
+        window.alert("Encrypted backups aren't available in this browsing context. Try the hosted (https) version.");
+        return;
+      }
+      const password = window.prompt("Set a password to encrypt this backup:");
+      if (!password) return;
+      encryptString(JSON.stringify(payload), password)
+        .then(enc => downloadJSON(enc, true))
+        .catch(() => window.alert("Couldn't encrypt this backup on this device."));
+      return;
+    }
+
+    downloadJSON(payload, false);
   }
 
   function importBackup(file) {
@@ -317,31 +578,56 @@
         return;
       }
 
-      const incoming = Array.isArray(data) ? data : data.pages;
-      if (!Array.isArray(incoming) || incoming.length === 0) {
-        window.alert("No pages found in that file.");
+      if (data && data.encrypted) {
+        if (!hasSubtleCrypto()) {
+          window.alert("Encrypted backups aren't available in this browsing context. Try the hosted (https) version.");
+          return;
+        }
+        const password = window.prompt("Enter the password for this backup:");
+        if (!password) return;
+        decryptString(data, password)
+          .then(plaintext => {
+            let inner;
+            try { inner = JSON.parse(plaintext); } catch (e) {
+              window.alert("Wrong password, or this file is corrupted.");
+              return;
+            }
+            finishImport(inner);
+          })
+          .catch(() => window.alert("Wrong password, or this file is corrupted."));
         return;
       }
 
-      const count = incoming.length;
-      const ok = window.confirm(
-        "Import " + count + (count === 1 ? " page" : " pages") +
-        "? They'll be added alongside your current notes."
-      );
-      if (!ok) return;
-
-      for (const raw of incoming) {
-        if (!raw || typeof raw !== "object") continue;
-        const p = freshPage(typeof raw.title === "string" ? raw.title : "");
-        p.body = typeof raw.body === "string" ? raw.body : "";
-        p.date = (typeof raw.date === "string" && raw.date) ? raw.date : formatToday();
-        pages.push(p);
-      }
-      persist();
-      render();
-      closeSettings();
+      finishImport(data);
     };
     reader.readAsText(file);
+  }
+
+  function finishImport(data) {
+    const incoming = Array.isArray(data) ? data : data.pages;
+    if (!Array.isArray(incoming) || incoming.length === 0) {
+      window.alert("No pages found in that file.");
+      return;
+    }
+
+    const count = incoming.length;
+    const ok = window.confirm(
+      "Import " + count + (count === 1 ? " page" : " pages") +
+      "? They'll be added alongside your current notes."
+    );
+    if (!ok) return;
+
+    for (const raw of incoming) {
+      if (!raw || typeof raw !== "object") continue;
+      const p = freshPage(typeof raw.title === "string" ? raw.title : "");
+      p.body = typeof raw.body === "string" ? raw.body : "";
+      p.date = (typeof raw.date === "string" && raw.date) ? raw.date : formatToday();
+      p.color = typeof raw.color === "string" ? raw.color : "";
+      pages.push(p);
+    }
+    persistNotebooks();
+    render();
+    closeSettings();
   }
 
   // ---------------------------------------------------------------
@@ -353,18 +639,58 @@
     updateNotebookStats();
   }
 
+  function getSortedPages() {
+    const pinned = pages.filter(p => p.pinned);
+    const unpinned = pages.filter(p => !p.pinned);
+
+    function applySort(arr) {
+      if (settings.sort === "title") {
+        return arr.slice().sort((a, b) => tabLabel(a).localeCompare(tabLabel(b)));
+      }
+      if (settings.sort === "recent") {
+        return arr.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      }
+      return arr; // manual — insertion order, as reordered by drag-and-drop
+    }
+
+    return applySort(pinned).concat(applySort(unpinned));
+  }
+
   function renderTabs() {
     tabRail.innerHTML = "";
+    const ordered = getSortedPages();
 
-    for (const p of pages) {
+    for (const p of ordered) {
       const btn = document.createElement("button");
       btn.className = "tab" + (p.id === activeId ? " active" : "");
       btn.type = "button";
       btn.dataset.id = p.id;
-      btn.textContent = tabLabel(p);
       btn.title = p.title.trim() || "Untitled";
+
+      if (p.color && COLOR_HEX[p.color]) {
+        const dot = document.createElement("span");
+        dot.className = "tab-color-dot";
+        dot.style.background = COLOR_HEX[p.color];
+        btn.appendChild(dot);
+      }
+
+      const label = document.createElement("span");
+      label.className = "tab-label";
+      label.textContent = tabLabel(p);
+      btn.appendChild(label);
+
+      if (p.pinned) {
+        const pinMark = document.createElement("span");
+        pinMark.className = "tab-pin-icon";
+        pinMark.textContent = "\uD83D\uDCCC"; // 📌
+        pinMark.setAttribute("aria-hidden", "true");
+        btn.appendChild(pinMark);
+      }
+
       btn.addEventListener("click", () => selectPage(p.id));
-      btn.addEventListener("pointerdown", (e) => onTabPointerDown(e, p.id, btn));
+      if (settings.sort === "manual") {
+        btn.addEventListener("pointerdown", (e) => onTabPointerDown(e, p.id, btn));
+      }
       tabRail.appendChild(btn);
     }
 
@@ -373,7 +699,7 @@
     addBtn.type = "button";
     addBtn.setAttribute("aria-label", "Add a page");
     addBtn.textContent = "+";
-    addBtn.addEventListener("click", addPage);
+    addBtn.addEventListener("click", openTemplatePicker);
     tabRail.appendChild(addBtn);
   }
 
@@ -469,7 +795,7 @@
       if (fromIdx !== -1 && toIdx !== -1) {
         const [movedPage] = pages.splice(fromIdx, 1);
         pages.splice(toIdx, 0, movedPage);
-        persist();
+        persistNotebooks();
       }
     }
     renderTabs();
@@ -510,6 +836,26 @@
     bodyEl.value = active.body;
     updateWordCount();
     savedAt.classList.remove("visible");
+    updatePinButton(active);
+    updateColorButton(active);
+  }
+
+  function updatePinButton(page) {
+    if (!pinBtn) return;
+    pinBtn.classList.toggle("pinned", !!(page && page.pinned));
+    pinBtn.title = page && page.pinned ? "Unpin this page" : "Pin this page";
+  }
+
+  function updateColorButton(page) {
+    if (!colorDotPreview) return;
+    const color = page ? page.color : "";
+    if (color && COLOR_HEX[color]) {
+      colorDotPreview.classList.add("has-color");
+      colorDotPreview.style.setProperty("--dot", COLOR_HEX[color]);
+    } else {
+      colorDotPreview.classList.remove("has-color");
+      colorDotPreview.style.removeProperty("--dot");
+    }
   }
 
   function updateWordCount() {
@@ -529,16 +875,17 @@
   // ---------------------------------------------------------------
   function selectPage(id) {
     activeId = id;
-    persist();
+    persistNotebooks();
     renderTabs();
     renderPage();
   }
 
-  function addPage() {
+  function addPage(template) {
     const p = freshPage(`Page ${pages.length + 1}`);
+    if (template && template.body) p.body = template.body;
     pages.push(p);
     activeId = p.id;
-    persist();
+    persistNotebooks();
     render();
     titleEl.focus();
     titleEl.select();
@@ -551,23 +898,23 @@
     const copy = freshPage(active.title ? active.title + " copy" : "");
     copy.body = active.body;
     copy.date = active.date;
+    copy.color = active.color;
 
     const idx = pages.findIndex(p => p.id === activeId);
     pages.splice(idx + 1, 0, copy);
     activeId = copy.id;
-    persist();
+    persistNotebooks();
     render();
     titleEl.focus();
     titleEl.select();
   }
 
+  // Deleting a page is reversible: it's removed immediately and a short
+  // "Undo" toast appears. If the toast times out or another page is
+  // deleted first, the removal becomes permanent.
   function deleteActivePage() {
     const active = pages.find(p => p.id === activeId);
     if (!active) return;
-
-    const label = active.title.trim() || "this untitled page";
-    const ok = window.confirm(`Tear out "${label}"? This can't be undone.`);
-    if (!ok) return;
 
     const idx = pages.findIndex(p => p.id === activeId);
     pages.splice(idx, 1);
@@ -578,8 +925,60 @@
       activeId = null;
     }
 
-    persist();
+    persistNotebooks();
     render();
+
+    pendingDelete = { page: active, index: idx };
+    showUndoToast(active.title.trim() || "Untitled page");
+  }
+
+  function showUndoToast(label) {
+    undoToastLabel.textContent = "\u201C" + label + "\u201D deleted";
+    undoToast.hidden = false;
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(() => {
+      undoToast.hidden = true;
+      pendingDelete = null;
+    }, 6000);
+  }
+
+  function undoDelete() {
+    if (!pendingDelete) return;
+    clearTimeout(undoTimer);
+    const { page, index } = pendingDelete;
+    const insertAt = Math.min(index, pages.length);
+    pages.splice(insertAt, 0, page);
+    activeId = page.id;
+    pendingDelete = null;
+    undoToast.hidden = true;
+    persistNotebooks();
+    render();
+  }
+
+  function togglePin() {
+    const active = pages.find(p => p.id === activeId);
+    if (!active) return;
+    active.pinned = !active.pinned;
+    persistNotebooks();
+    render();
+  }
+
+  function setPageColor(color) {
+    const active = pages.find(p => p.id === activeId);
+    if (!active) return;
+    active.color = color;
+    persistNotebooks();
+    renderTabs();
+    updateColorButton(active);
+    closeColorPopover();
+  }
+
+  function openColorPopover() {
+    colorPopover.hidden = false;
+  }
+
+  function closeColorPopover() {
+    colorPopover.hidden = true;
   }
 
   function scheduleSave() {
@@ -594,11 +993,102 @@
 
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      persist();
+      persistNotebooks();
       renderTabs();
       updateNotebookStats();
       flashSaved();
     }, 400);
+  }
+
+  // ---------------------------------------------------------------
+  // New-page templates
+  // ---------------------------------------------------------------
+  function openTemplatePicker() {
+    templateList.innerHTML = "";
+    for (const t of TEMPLATES) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "notebook-list-item";
+
+      const body = document.createElement("div");
+      body.className = "notebook-list-body";
+      const name = document.createElement("div");
+      name.className = "notebook-list-name";
+      name.textContent = t.name;
+      const meta = document.createElement("div");
+      meta.className = "notebook-list-meta";
+      meta.textContent = t.desc;
+      body.appendChild(name);
+      body.appendChild(meta);
+      item.appendChild(body);
+
+      item.addEventListener("click", () => {
+        addPage(t);
+        closeTemplatePicker();
+      });
+      templateList.appendChild(item);
+    }
+    templateOverlay.hidden = false;
+  }
+
+  function closeTemplatePicker() {
+    templateOverlay.hidden = true;
+  }
+
+  // ---------------------------------------------------------------
+  // Notebooks switcher panel
+  // ---------------------------------------------------------------
+  function openNotebooks() {
+    renderNotebookList();
+    notebooksOverlay.hidden = false;
+  }
+
+  function closeNotebooks() {
+    notebooksOverlay.hidden = true;
+  }
+
+  function renderNotebookList() {
+    notebookList.innerHTML = "";
+    for (const nb of notebooks) {
+      const item = document.createElement("div");
+      item.className = "notebook-list-item" + (nb.id === currentNotebookId ? " active" : "");
+
+      const body = document.createElement("div");
+      body.className = "notebook-list-body";
+      const name = document.createElement("div");
+      name.className = "notebook-list-name";
+      name.textContent = nb.name;
+      const meta = document.createElement("div");
+      meta.className = "notebook-list-meta";
+      const count = nb.pages.length;
+      meta.textContent = count + (count === 1 ? " page" : " pages") + " \u2014 double-click name to rename";
+      body.appendChild(name);
+      body.appendChild(meta);
+      body.addEventListener("click", () => {
+        switchNotebook(nb.id);
+        closeNotebooks();
+      });
+      name.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        renameNotebook(nb);
+      });
+      item.appendChild(body);
+
+      if (notebooks.length > 1) {
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "notebook-list-delete";
+        del.setAttribute("aria-label", "Delete notebook");
+        del.textContent = "\u00d7";
+        del.addEventListener("click", (e) => {
+          e.stopPropagation();
+          deleteNotebook(nb.id);
+        });
+        item.appendChild(del);
+      }
+
+      notebookList.appendChild(item);
+    }
   }
 
   // ---------------------------------------------------------------
@@ -652,11 +1142,11 @@
       }
     });
 
-    installBtn.addEventListener("click", async () => {
+    installBtn.addEventListener("click", () => {
       if (!deferredInstallPrompt) return;
       installBtn.hidden = true;
       deferredInstallPrompt.prompt();
-      try { await deferredInstallPrompt.userChoice; } catch (e) { /* ignore */ }
+      Promise.resolve(deferredInstallPrompt.userChoice).catch(() => { /* ignore */ });
       deferredInstallPrompt = null;
     });
 
@@ -694,6 +1184,106 @@
   }
 
   // ---------------------------------------------------------------
+  // PIN lock — a privacy screen, not real security. The notes are
+  // still plain text in localStorage; this only gates the UI so a
+  // passer-by can't casually open the tab and start reading. Said
+  // plainly in the Settings copy too.
+  // ---------------------------------------------------------------
+  function sha256Hex(str) {
+    const enc = new TextEncoder().encode(str);
+    return crypto.subtle.digest("SHA-256", enc).then(buf => {
+      const bytes = new Uint8Array(buf);
+      let hex = "";
+      for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, "0");
+      }
+      return hex;
+    });
+  }
+
+  function initPinGate() {
+    let hash = null;
+    try { hash = localStorage.getItem(PIN_HASH_KEY); } catch (e) { /* ignore */ }
+
+    if (setPinBtn) setPinBtn.hidden = !!hash;
+    if (removePinBtn) removePinBtn.hidden = !hash;
+
+    if (!hash) return;
+
+    let unlocked = false;
+    try { unlocked = sessionStorage.getItem(UNLOCKED_KEY) === "1"; } catch (e) { /* ignore */ }
+    if (unlocked) return;
+
+    lockOverlay.hidden = false;
+    setTimeout(() => lockPinInput.focus(), 0);
+  }
+
+  function setPin() {
+    if (!hasSubtleCrypto()) {
+      window.alert("PIN lock isn't available in this browsing context. Try the hosted (https) version.");
+      return;
+    }
+    const pin1 = window.prompt("Choose a PIN (4+ characters):");
+    if (!pin1) return;
+    if (pin1.length < 4) {
+      window.alert("Use at least 4 characters.");
+      return;
+    }
+    const pin2 = window.prompt("Enter it again to confirm:");
+    if (pin2 !== pin1) {
+      window.alert("Those didn't match \u2014 nothing was changed.");
+      return;
+    }
+    sha256Hex(pin1).then(hash => {
+      try {
+        localStorage.setItem(PIN_HASH_KEY, hash);
+        sessionStorage.setItem(UNLOCKED_KEY, "1");
+      } catch (e) { /* ignore */ }
+      setPinBtn.hidden = true;
+      removePinBtn.hidden = false;
+      window.alert("PIN set. You'll be asked for it next time this notebook is opened in a new browser session.");
+    }).catch(() => window.alert("Couldn't set a PIN on this device."));
+  }
+
+  function removePin() {
+    const ok = window.confirm("Remove the PIN? The notebook will open without asking from now on.");
+    if (!ok) return;
+    try {
+      localStorage.removeItem(PIN_HASH_KEY);
+      sessionStorage.removeItem(UNLOCKED_KEY);
+    } catch (e) { /* ignore */ }
+    setPinBtn.hidden = false;
+    removePinBtn.hidden = true;
+  }
+
+  function attemptUnlock() {
+    const entered = lockPinInput.value;
+    if (!entered) return;
+    let storedHash = null;
+    try { storedHash = localStorage.getItem(PIN_HASH_KEY); } catch (e) { /* ignore */ }
+    if (!storedHash) { lockOverlay.hidden = true; return; }
+
+    sha256Hex(entered).then(hash => {
+      if (hash === storedHash) {
+        try { sessionStorage.setItem(UNLOCKED_KEY, "1"); } catch (e) { /* ignore */ }
+        lockOverlay.hidden = true;
+        lockError.hidden = true;
+        lockPinInput.value = "";
+      } else {
+        lockError.hidden = false;
+        lockPanel.classList.remove("lock-shake");
+        void lockPanel.offsetWidth;
+        lockPanel.classList.add("lock-shake");
+        lockPinInput.value = "";
+        lockPinInput.focus();
+      }
+    }).catch(() => {
+      lockError.hidden = false;
+      lockError.textContent = "Couldn't check the PIN on this device.";
+    });
+  }
+
+  // ---------------------------------------------------------------
   // Wire up
   // ---------------------------------------------------------------
   titleEl.addEventListener("input", scheduleSave);
@@ -702,7 +1292,22 @@
   deleteBtn.addEventListener("click", deleteActivePage);
   duplicateBtn.addEventListener("click", duplicatePage);
   printBtn.addEventListener("click", () => window.print());
-  emptyAddBtn.addEventListener("click", addPage);
+  emptyAddBtn.addEventListener("click", openTemplatePicker);
+
+  pinBtn.addEventListener("click", togglePin);
+  colorBtn.addEventListener("click", () => {
+    if (colorPopover.hidden) openColorPopover(); else closeColorPopover();
+  });
+  colorPopover.addEventListener("click", (e) => {
+    const swatch = e.target.closest(".color-swatch");
+    if (!swatch) return;
+    setPageColor(swatch.dataset.color || "");
+  });
+  document.addEventListener("click", (e) => {
+    if (!colorPopover.hidden && colorPickerWrap && !colorPickerWrap.contains(e.target)) {
+      closeColorPopover();
+    }
+  });
 
   window.addEventListener("online", updateOnlineStatus);
   window.addEventListener("offline", updateOnlineStatus);
@@ -727,6 +1332,33 @@
     if (file) importBackup(file);
     importFile.value = "";
   });
+  if (encryptBackupToggle) {
+    encryptBackupToggle.addEventListener("change", () => {
+      settings.encryptBackups = encryptBackupToggle.checked;
+      persistSettings();
+    });
+  }
+
+  if (setPinBtn) setPinBtn.addEventListener("click", setPin);
+  if (removePinBtn) removePinBtn.addEventListener("click", removePin);
+  lockUnlockBtn.addEventListener("click", attemptUnlock);
+  lockPinInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") attemptUnlock();
+  });
+
+  notebookSwitchBtn.addEventListener("click", openNotebooks);
+  notebooksClose.addEventListener("click", closeNotebooks);
+  notebooksOverlay.addEventListener("click", (e) => {
+    if (e.target === notebooksOverlay) closeNotebooks();
+  });
+  newNotebookBtn.addEventListener("click", createNotebook);
+
+  templateClose.addEventListener("click", closeTemplatePicker);
+  templateOverlay.addEventListener("click", (e) => {
+    if (e.target === templateOverlay) closeTemplatePicker();
+  });
+
+  undoBtn.addEventListener("click", undoDelete);
 
   document.addEventListener("keydown", (e) => {
     const mod = e.ctrlKey || e.metaKey;
@@ -745,10 +1377,14 @@
       return;
     }
 
-    // Escape — close whichever overlay is open.
+    // Escape — close whichever overlay is open. The PIN lock is
+    // deliberately not in this list; it isn't dismissible.
     if (e.key === "Escape") {
       if (!searchOverlay.hidden) { closeSearch(); return; }
       if (!settingsOverlay.hidden) { closeSettings(); return; }
+      if (!notebooksOverlay.hidden) { closeNotebooks(); return; }
+      if (!templateOverlay.hidden) { closeTemplatePicker(); return; }
+      if (!colorPopover.hidden) { closeColorPopover(); return; }
       return;
     }
 
@@ -776,6 +1412,14 @@
   wireSettingsRow(paperRow, "paper", false);
   wireSettingsRow(fontRow, "font", false);
   wireSettingsRow(sizeRow, "size", true);
+  wireSettingsRow(sortRow, "sort", false);
+
+  if (window.matchMedia) {
+    const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const onSchemeChange = () => { if (settings.theme === "auto") applySettings(); };
+    if (darkModeQuery.addEventListener) darkModeQuery.addEventListener("change", onSchemeChange);
+    else if (darkModeQuery.addListener) darkModeQuery.addListener(onSchemeChange);
+  }
 
   // Save immediately before the tab closes so nothing is lost.
   window.addEventListener("beforeunload", () => {
@@ -785,12 +1429,15 @@
       active.date = dateEl.value;
       active.body = bodyEl.value;
     }
-    persist();
+    persistNotebooks();
   });
 
   loadSettings();
+  loadNotebooks();
+  if (encryptBackupToggle) encryptBackupToggle.checked = !!settings.encryptBackups;
+  updateNotebookHeader();
   applySettings();
-  load();
+  initPinGate();
   render();
   updateOnlineStatus();
   initInstall();
