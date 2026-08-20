@@ -26,7 +26,8 @@ It also installs as a PWA and works offline.
 The gear icon opens a settings panel:
 
 - **Theme** — Steno (cream/pine), Midnight (dark), Manuscript (sepia/serif),
-  Slate (cool/graph), or Auto (follows your system's light/dark setting and
+  Slate (cool/graph), Forest (moss green), Blush (dusty rose), Amber
+  (warm sunset), or Auto (follows your system's light/dark setting and
   updates live if it changes).
 - **Paper** — Ruled, Grid, or Blank.
 - **Typeface** — Mono, Serif, Sans, or Hand (handwritten).

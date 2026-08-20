@@ -6,7 +6,7 @@
 // time app.js/styles.css/index.html change so clients pick up the
 // new files instead of stale cached ones.
 
-const CACHE_VERSION = "steno-v2";
+const CACHE_VERSION = "steno-v3";
 
 const APP_SHELL = [
   "./",
