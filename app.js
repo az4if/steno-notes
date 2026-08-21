@@ -112,6 +112,142 @@
   }
 
   // ---------------------------------------------------------------
+  // Themed dialogs — a drop-in replacement for window.alert/confirm/
+  // prompt. Native dialogs are drawn by the OS/browser and ignore the
+  // page's theme entirely (e.g. a bright white confirm box popping up
+  // over the Midnight theme), so these build a small themed panel
+  // instead, using the same overlay pattern as Settings/Search/etc.
+  // Each returns a Promise: showAlert -> undefined, showConfirm ->
+  // boolean, showPrompt -> string | null (null means cancelled).
+  // ---------------------------------------------------------------
+  function openDialog(opts) {
+    const { kind, title, message, defaultValue, placeholder, danger, confirmLabel, cancelLabel } = opts;
+
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "dialog-overlay";
+
+      const panel = document.createElement("div");
+      panel.className = "dialog-panel";
+      panel.setAttribute("role", "alertdialog");
+      panel.setAttribute("aria-modal", "true");
+      if (title) panel.setAttribute("aria-label", title);
+
+      if (title) {
+        const h = document.createElement("h2");
+        h.className = "dialog-title";
+        h.textContent = title;
+        panel.appendChild(h);
+      }
+
+      if (message) {
+        const p = document.createElement("p");
+        p.className = "dialog-message";
+        p.textContent = message;
+        panel.appendChild(p);
+      }
+
+      let input = null;
+      if (kind === "prompt") {
+        input = document.createElement("input");
+        input.type = (placeholder || "").toLowerCase().includes("password") ? "password" : "text";
+        input.className = "dialog-input";
+        input.value = defaultValue || "";
+        if (placeholder) input.placeholder = placeholder;
+        input.autocomplete = "off";
+        input.spellcheck = false;
+        panel.appendChild(input);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "dialog-actions";
+
+      let cancelBtn = null;
+      if (kind !== "alert") {
+        cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "dialog-btn dialog-btn-secondary";
+        cancelBtn.textContent = cancelLabel || "Cancel";
+        actions.appendChild(cancelBtn);
+      }
+
+      const okBtn = document.createElement("button");
+      okBtn.type = "button";
+      okBtn.className = "dialog-btn " + (danger ? "dialog-btn-danger" : "dialog-btn-primary");
+      okBtn.textContent = confirmLabel || "OK";
+      actions.appendChild(okBtn);
+
+      panel.appendChild(actions);
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+
+      const previouslyFocused = document.activeElement;
+
+      function cleanup(result) {
+        document.removeEventListener("keydown", onKeydown, true);
+        overlay.removeEventListener("mousedown", onOverlayMousedown);
+        overlay.remove();
+        if (previouslyFocused && typeof previouslyFocused.focus === "function") {
+          try { previouslyFocused.focus(); } catch (e) { /* ignore */ }
+        }
+        resolve(result);
+      }
+
+      function confirmAndClose() {
+        cleanup(kind === "prompt" ? input.value : true);
+      }
+
+      function dismiss() {
+        cleanup(kind === "prompt" ? null : false);
+      }
+
+      okBtn.addEventListener("click", confirmAndClose);
+      if (cancelBtn) cancelBtn.addEventListener("click", dismiss);
+
+      // Only dismiss on a click that both starts and ends on the
+      // overlay backdrop itself, so dragging a text selection out
+      // past the panel edge doesn't accidentally close the dialog.
+      function onOverlayMousedown(e) {
+        if (e.target !== overlay) return;
+        const onUp = (upEvent) => {
+          overlay.removeEventListener("mouseup", onUp);
+          if (upEvent.target === overlay) dismiss();
+        };
+        overlay.addEventListener("mouseup", onUp);
+      }
+      overlay.addEventListener("mousedown", onOverlayMousedown);
+
+      function onKeydown(e) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          dismiss();
+        } else if (e.key === "Enter" && kind === "prompt" && document.activeElement === input) {
+          e.preventDefault();
+          e.stopPropagation();
+          confirmAndClose();
+        }
+      }
+      document.addEventListener("keydown", onKeydown, true);
+
+      setTimeout(() => {
+        if (input) { input.focus(); input.select(); }
+        else okBtn.focus();
+      }, 0);
+    });
+  }
+
+  function showAlert(message, opts) {
+    return openDialog(Object.assign({ kind: "alert", message, confirmLabel: "OK" }, opts));
+  }
+  function showConfirm(message, opts) {
+    return openDialog(Object.assign({ kind: "confirm", message, confirmLabel: "OK" }, opts));
+  }
+  function showPrompt(message, defaultValue, opts) {
+    return openDialog(Object.assign({ kind: "prompt", message, defaultValue, confirmLabel: "OK" }, opts));
+  }
+
+  // ---------------------------------------------------------------
   // Notebooks + pages: persistence
   // ---------------------------------------------------------------
   function loadNotebooks() {
@@ -206,8 +342,10 @@
     render();
   }
 
-  function createNotebook() {
-    const name = window.prompt("Name this notebook:", "Notebook " + (notebooks.length + 1));
+  async function createNotebook() {
+    const name = await showPrompt("Name this notebook:", "Notebook " + (notebooks.length + 1), {
+      title: "New notebook", confirmLabel: "Create",
+    });
     if (name === null) return;
     const p = freshPage("Page 1");
     const nb = {
@@ -221,8 +359,10 @@
     closeNotebooks();
   }
 
-  function renameNotebook(nb) {
-    const newName = window.prompt("Rename notebook:", nb.name);
+  async function renameNotebook(nb) {
+    const newName = await showPrompt("New name for this notebook:", nb.name, {
+      title: "Rename notebook", confirmLabel: "Rename",
+    });
     if (newName === null) return;
     nb.name = newName.trim() || nb.name;
     persistNotebooks();
@@ -230,14 +370,15 @@
     updateNotebookHeader();
   }
 
-  function deleteNotebook(id) {
+  async function deleteNotebook(id) {
     if (notebooks.length <= 1) return;
     const nb = notebooks.find(n => n.id === id);
     if (!nb) return;
     const count = nb.pages.length;
-    const ok = window.confirm(
-      "Delete notebook \"" + nb.name + "\" and " + count + (count === 1 ? " page" : " pages") +
-      " inside it? This can't be undone."
+    const ok = await showConfirm(
+      "Delete notebook \u201c" + nb.name + "\u201d and " + count + (count === 1 ? " page" : " pages") +
+      " inside it? This can't be undone.",
+      { title: "Delete notebook", confirmLabel: "Delete", danger: true }
     );
     if (!ok) return;
 
@@ -542,7 +683,7 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  function exportBackup() {
+  async function exportBackup() {
     const payload = {
       app: "steno",
       version: 2,
@@ -553,14 +694,19 @@
 
     if (encryptBackupToggle && encryptBackupToggle.checked) {
       if (!hasSubtleCrypto()) {
-        window.alert("Encrypted backups aren't available in this browsing context. Try the hosted (https) version.");
+        await showAlert("Encrypted backups aren't available in this browsing context. Try the hosted (https) version.", { title: "Can't encrypt" });
         return;
       }
-      const password = window.prompt("Set a password to encrypt this backup:");
+      const password = await showPrompt("Set a password to encrypt this backup:", "", {
+        title: "Encrypt backup", placeholder: "Password", confirmLabel: "Encrypt & export",
+      });
       if (!password) return;
-      encryptString(JSON.stringify(payload), password)
-        .then(enc => downloadJSON(enc, true))
-        .catch(() => window.alert("Couldn't encrypt this backup on this device."));
+      try {
+        const enc = await encryptString(JSON.stringify(payload), password);
+        downloadJSON(enc, true);
+      } catch (e) {
+        await showAlert("Couldn't encrypt this backup on this device.", { title: "Export failed" });
+      }
       return;
     }
 
@@ -569,51 +715,57 @@
 
   function importBackup(file) {
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       let data;
       try {
         data = JSON.parse(String(reader.result));
       } catch (e) {
-        window.alert("That file doesn't look like a valid Steno backup.");
+        await showAlert("That file doesn't look like a valid Steno backup.", { title: "Import failed" });
         return;
       }
 
       if (data && data.encrypted) {
         if (!hasSubtleCrypto()) {
-          window.alert("Encrypted backups aren't available in this browsing context. Try the hosted (https) version.");
+          await showAlert("Encrypted backups aren't available in this browsing context. Try the hosted (https) version.", { title: "Can't decrypt" });
           return;
         }
-        const password = window.prompt("Enter the password for this backup:");
+        const password = await showPrompt("Enter the password for this backup:", "", {
+          title: "Encrypted backup", placeholder: "Password", confirmLabel: "Unlock",
+        });
         if (!password) return;
-        decryptString(data, password)
-          .then(plaintext => {
-            let inner;
-            try { inner = JSON.parse(plaintext); } catch (e) {
-              window.alert("Wrong password, or this file is corrupted.");
-              return;
-            }
-            finishImport(inner);
-          })
-          .catch(() => window.alert("Wrong password, or this file is corrupted."));
+        try {
+          const plaintext = await decryptString(data, password);
+          let inner;
+          try {
+            inner = JSON.parse(plaintext);
+          } catch (e) {
+            await showAlert("Wrong password, or this file is corrupted.", { title: "Import failed" });
+            return;
+          }
+          await finishImport(inner);
+        } catch (e) {
+          await showAlert("Wrong password, or this file is corrupted.", { title: "Import failed" });
+        }
         return;
       }
 
-      finishImport(data);
+      await finishImport(data);
     };
     reader.readAsText(file);
   }
 
-  function finishImport(data) {
+  async function finishImport(data) {
     const incoming = Array.isArray(data) ? data : data.pages;
     if (!Array.isArray(incoming) || incoming.length === 0) {
-      window.alert("No pages found in that file.");
+      await showAlert("No pages found in that file.", { title: "Import failed" });
       return;
     }
 
     const count = incoming.length;
-    const ok = window.confirm(
+    const ok = await showConfirm(
       "Import " + count + (count === 1 ? " page" : " pages") +
-      "? They'll be added alongside your current notes."
+      "? They'll be added alongside your current notes.",
+      { title: "Import backup", confirmLabel: "Import" }
     );
     if (!ok) return;
 
@@ -789,6 +941,15 @@
     const { id, targetId, dragging } = dragState;
     teardownTabDrag();
 
+    // Only rebuild the tab rail here if an actual drag happened. A
+    // plain click also goes through pointerdown -> pointerup (this
+    // handler) before the browser's own "click" event fires, so
+    // unconditionally re-rendering the tabs on every pointerup would
+    // tear out and rebuild the tab buttons out from under the click
+    // that's about to land on them — the click event then has no
+    // element left to fire on, and selecting a tab silently does
+    // nothing. Only a completed reorder needs a re-render; a plain
+    // click's own selectPage() call already re-renders afterward.
     if (dragging && targetId && targetId !== id) {
       const fromIdx = pages.findIndex(p => p.id === id);
       const toIdx = pages.findIndex(p => p.id === targetId);
@@ -797,8 +958,13 @@
         pages.splice(toIdx, 0, movedPage);
         persistNotebooks();
       }
+      renderTabs();
     }
-    renderTabs();
+    // A drag that ended without landing on a different tab (e.g.
+    // dropped back on itself), or a plain click, needs no extra
+    // re-render here — teardownTabDrag() above already cleared any
+    // drag-target styling, and a plain click's own selectPage() call
+    // re-renders the tabs right after this.
   }
 
   function teardownTabDrag() {
@@ -909,12 +1075,24 @@
     titleEl.select();
   }
 
-  // Deleting a page is reversible: it's removed immediately and a short
-  // "Undo" toast appears. If the toast times out or another page is
-  // deleted first, the removal becomes permanent.
-  function deleteActivePage() {
+  // Deleting a page asks for confirmation first (themed to match the
+  // current theme, unlike a native browser confirm box), then removes
+  // it immediately and shows a short "Undo" toast. If the toast times
+  // out or another page is deleted first, the removal becomes permanent.
+  async function deleteActivePage() {
     const active = pages.find(p => p.id === activeId);
     if (!active) return;
+
+    const ok = await showConfirm(
+      "Tear out \u201c" + (active.title.trim() || "Untitled page") + "\u201d? You can undo this right after.",
+      { title: "Delete page", confirmLabel: "Delete", danger: true }
+    );
+    if (!ok) return;
+
+    // The active page may have changed while the confirm dialog was
+    // open (unlikely, but be safe rather than delete the wrong page).
+    const current = pages.find(p => p.id === activeId);
+    if (!current) return;
 
     const idx = pages.findIndex(p => p.id === activeId);
     pages.splice(idx, 1);
@@ -928,8 +1106,8 @@
     persistNotebooks();
     render();
 
-    pendingDelete = { page: active, index: idx };
-    showUndoToast(active.title.trim() || "Untitled page");
+    pendingDelete = { page: current, index: idx };
+    showUndoToast(current.title.trim() || "Untitled page");
   }
 
   function showUndoToast(label) {
@@ -1049,6 +1227,22 @@
 
   function renderNotebookList() {
     notebookList.innerHTML = "";
+
+    // A double-click is, from the DOM's point of view, two "click"
+    // events followed by one "dblclick" — so a plain click handler on
+    // the row fires (and switches notebooks, closing this panel)
+    // before the dblclick that should trigger a rename ever arrives.
+    // To tell the two apart, a click schedules the switch a beat
+    // later instead of doing it immediately; a dblclick landing in
+    // that window cancels the pending switch and renames instead.
+    let pendingSwitch = null; // { timer }
+    function cancelPendingSwitch() {
+      if (pendingSwitch) {
+        clearTimeout(pendingSwitch.timer);
+        pendingSwitch = null;
+      }
+    }
+
     for (const nb of notebooks) {
       const item = document.createElement("div");
       item.className = "notebook-list-item" + (nb.id === currentNotebookId ? " active" : "");
@@ -1065,11 +1259,18 @@
       body.appendChild(name);
       body.appendChild(meta);
       body.addEventListener("click", () => {
-        switchNotebook(nb.id);
-        closeNotebooks();
+        cancelPendingSwitch();
+        pendingSwitch = {
+          timer: setTimeout(() => {
+            pendingSwitch = null;
+            switchNotebook(nb.id);
+            closeNotebooks();
+          }, 300),
+        };
       });
       name.addEventListener("dblclick", (e) => {
         e.stopPropagation();
+        cancelPendingSwitch();
         renameNotebook(nb);
       });
       item.appendChild(body);
@@ -1218,35 +1419,47 @@
     setTimeout(() => lockPinInput.focus(), 0);
   }
 
-  function setPin() {
+  async function setPin() {
     if (!hasSubtleCrypto()) {
-      window.alert("PIN lock isn't available in this browsing context. Try the hosted (https) version.");
+      await showAlert("PIN lock isn't available in this browsing context. Try the hosted (https) version.", { title: "Can't set a PIN" });
       return;
     }
-    const pin1 = window.prompt("Choose a PIN (4+ characters):");
+    const pin1 = await showPrompt("Choose a PIN (4+ characters):", "", {
+      title: "Set a PIN", placeholder: "PIN", confirmLabel: "Continue",
+    });
     if (!pin1) return;
     if (pin1.length < 4) {
-      window.alert("Use at least 4 characters.");
+      await showAlert("Use at least 4 characters.", { title: "Too short" });
       return;
     }
-    const pin2 = window.prompt("Enter it again to confirm:");
+    const pin2 = await showPrompt("Enter it again to confirm:", "", {
+      title: "Confirm PIN", placeholder: "PIN", confirmLabel: "Set PIN",
+    });
     if (pin2 !== pin1) {
-      window.alert("Those didn't match \u2014 nothing was changed.");
+      await showAlert("Those didn't match \u2014 nothing was changed.", { title: "Didn't match" });
       return;
     }
-    sha256Hex(pin1).then(hash => {
-      try {
-        localStorage.setItem(PIN_HASH_KEY, hash);
-        sessionStorage.setItem(UNLOCKED_KEY, "1");
-      } catch (e) { /* ignore */ }
-      setPinBtn.hidden = true;
-      removePinBtn.hidden = false;
-      window.alert("PIN set. You'll be asked for it next time this notebook is opened in a new browser session.");
-    }).catch(() => window.alert("Couldn't set a PIN on this device."));
+
+    let hash;
+    try {
+      hash = await sha256Hex(pin1);
+    } catch (e) {
+      await showAlert("Couldn't set a PIN on this device.", { title: "Something went wrong" });
+      return;
+    }
+    try {
+      localStorage.setItem(PIN_HASH_KEY, hash);
+      sessionStorage.setItem(UNLOCKED_KEY, "1");
+    } catch (e) { /* ignore */ }
+    setPinBtn.hidden = true;
+    removePinBtn.hidden = false;
+    await showAlert("PIN set. You'll be asked for it next time this notebook is opened in a new browser session.", { title: "PIN set" });
   }
 
-  function removePin() {
-    const ok = window.confirm("Remove the PIN? The notebook will open without asking from now on.");
+  async function removePin() {
+    const ok = await showConfirm("Remove the PIN? The notebook will open without asking from now on.", {
+      title: "Remove PIN", confirmLabel: "Remove", danger: true,
+    });
     if (!ok) return;
     try {
       localStorage.removeItem(PIN_HASH_KEY);

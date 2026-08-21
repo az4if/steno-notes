@@ -1220,6 +1220,7 @@ textarea:focus-visible {
   .tab-rail,
   .icon-btn,
   .settings-overlay,
+  .dialog-overlay,
   .head-icon-btn,
   .delete-btn,
   .page-foot,
@@ -1411,6 +1412,127 @@ textarea:focus-visible {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-8px); }
   75% { transform: translateX(8px); }
+}
+
+/* ---------------------------------------------------------------
+   Themed dialogs — replaces window.alert/confirm/prompt so every
+   dialog (delete confirmations, rename, PIN, backup password, etc.)
+   picks up the current theme instead of the browser's own unthemed
+   native dialog box. Sits above Settings/Search/Notebooks/Template
+   overlays (z-index 20) since it can be opened from within one of
+   them, but below the PIN lock screen (z-index 100).
+--------------------------------------------------------------- */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+  background: rgba(10, 8, 4, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.dialog-panel {
+  width: 100%;
+  max-width: 340px;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  padding: 20px 22px 22px;
+  font-family: var(--font-display);
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+.dialog-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.dialog-message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.dialog-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 14px;
+  border: 1.5px solid var(--paper-edge);
+  background: transparent;
+  outline: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.dialog-input:focus {
+  border-color: var(--accent);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.dialog-btn {
+  appearance: none;
+  border: 1.5px solid var(--paper-edge);
+  background: transparent;
+  color: var(--ink-soft);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.dialog-btn:hover {
+  color: var(--ink);
+}
+
+.dialog-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dialog-btn-secondary:hover {
+  border-color: var(--ink-soft);
+}
+
+.dialog-btn-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.dialog-btn-primary:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+}
+
+.dialog-btn-danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--accent-ink, #fff);
+}
+
+.dialog-btn-danger:hover {
+  filter: brightness(0.92);
 }
 
 /* ---------------------------------------------------------------
