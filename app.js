@@ -26,6 +26,11 @@
     { id: "todo",    name: "To-do list",    desc: "A quick checklist.", body: "- [ ] \n- [ ] \n- [ ] " },
   ];
 
+  // Matches a checklist line written as "- [ ] " (or an already
+  // checked "- [ \u2713 ] " / legacy "- [x] ") with no leading
+  // indentation — exactly what the To-do template writes.
+  const CHECKLIST_LINE_RE = /^-\s\[[^\]]*\]/;
+
   const root       = document.documentElement;
   const tabRail     = document.getElementById("tabRail");
   const pageEl      = document.getElementById("page");
@@ -1006,6 +1011,87 @@
     updateColorButton(active);
   }
 
+  // ---------------------------------------------------------------
+  // To-do checkboxes — clicking directly on a "- [ ] " marker (no
+  // separate widget) flips it to "- [ \u2713 ] ", and clicking it again
+  // flips it back. Since the caret position is already known the
+  // instant a click lands in the textarea, this just checks whether
+  // that click fell on the marker at the start of its line.
+  // ---------------------------------------------------------------
+  function onBodyClick() {
+    if (bodyEl.selectionStart !== bodyEl.selectionEnd) return; // ignore drag-selections
+
+    const idx = bodyEl.selectionStart;
+    const text = bodyEl.value;
+    const lineStart = text.lastIndexOf("\n", idx - 1) + 1;
+    const lineEndIdx = text.indexOf("\n", idx);
+    const lineEnd = lineEndIdx === -1 ? text.length : lineEndIdx;
+    const line = text.slice(lineStart, lineEnd);
+
+    const m = CHECKLIST_LINE_RE.exec(line);
+    if (!m) return;
+
+    const bracketClose = line.indexOf("]", line.indexOf("["));
+    if (bracketClose === -1) return;
+
+    // Clickable zone is the marker itself: from the start of the line
+    // through just past the closing "]". Clicking further into the
+    // line (the item's own text) is left alone for normal editing.
+    const clickOffset = idx - lineStart;
+    if (clickOffset > bracketClose + 1) return;
+
+    toggleChecklistLine(lineStart);
+  }
+
+  // Flips the "[ ]" / "[ \u2713 ]" marker on one specific line,
+  // identified by the character offset where that line begins.
+  const CHECKLIST_UNCHECKED = "[ ]";
+  const CHECKLIST_CHECKED = "[ \u2713 ]";
+
+  function toggleChecklistLine(lineStart) {
+    const text = bodyEl.value;
+    const lineEndIdx = text.indexOf("\n", lineStart);
+    const lineEnd = lineEndIdx === -1 ? text.length : lineEndIdx;
+    const line = text.slice(lineStart, lineEnd);
+    const m = CHECKLIST_LINE_RE.exec(line);
+    if (!m) return;
+
+    const bracketOpen = line.indexOf("[");
+    const bracketClose = line.indexOf("]", bracketOpen);
+    if (bracketOpen === -1 || bracketClose === -1) return;
+
+    // Accept a legacy "[x]"/"[X]" (from an older version of this
+    // feature) as "checked" too, so any notes already toggled that
+    // way still read correctly and toggle back to the new marker.
+    const inner = line.slice(bracketOpen + 1, bracketClose).trim();
+    const isChecked = inner === "x" || inner === "X" || inner === "\u2713";
+    const newMarker = isChecked ? CHECKLIST_UNCHECKED : CHECKLIST_CHECKED;
+
+    const absOpen = lineStart + bracketOpen;
+    const absClose = lineStart + bracketClose;
+    const newText = text.slice(0, absOpen) + newMarker + text.slice(absClose + 1);
+
+    const scrollTop = bodyEl.scrollTop;
+    bodyEl.value = newText;
+    bodyEl.scrollTop = scrollTop;
+    const caretPos = Math.min(absOpen + newMarker.length, newText.length);
+    bodyEl.selectionStart = bodyEl.selectionEnd = caretPos;
+    bodyEl.focus();
+
+    const active = pages.find(p => p.id === activeId);
+    if (active) {
+      active.title = titleEl.value;
+      active.date = dateEl.value;
+      active.body = newText;
+      active.updatedAt = Date.now();
+    }
+    persistNotebooks();
+    updateWordCount();
+    updateNotebookStats();
+    renderTabs();
+    flashSaved();
+  }
+
   function updatePinButton(page) {
     if (!pinBtn) return;
     pinBtn.classList.toggle("pinned", !!(page && page.pinned));
@@ -1502,6 +1588,7 @@
   titleEl.addEventListener("input", scheduleSave);
   dateEl.addEventListener("input", scheduleSave);
   bodyEl.addEventListener("input", scheduleSave);
+  bodyEl.addEventListener("click", onBodyClick);
   deleteBtn.addEventListener("click", deleteActivePage);
   duplicateBtn.addEventListener("click", duplicatePage);
   printBtn.addEventListener("click", () => window.print());
